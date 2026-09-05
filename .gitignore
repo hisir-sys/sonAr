@@ -1,0 +1,12 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor settings
+.vscode/
+
+# Environment variables (for when we add the backend later)
+.env
+
+# Dependencies (for when we add Node.js tooling later)
+node_modules/
