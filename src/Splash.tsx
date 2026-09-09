@@ -567,7 +567,7 @@ export default function Splash() {
                 text-foreground
               "
             >
-              r...
+              r..
             </span>
 
           </div>
