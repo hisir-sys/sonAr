@@ -2,8 +2,15 @@ import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import type { ProjectionMode, ImageryMode } from '../types'
-import { mapStyle, satStyle } from './style'
+import type {
+  ProjectionMode,
+  ImageryMode,
+} from '../types'
+
+import {
+  mapStyle,
+  satStyle,
+} from './style'
 
 interface GlobeProps {
   projectionMode: ProjectionMode
@@ -14,118 +21,255 @@ export default function Globe({
   projectionMode,
   imageryMode,
 }: GlobeProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<maplibregl.Map | null>(null)
-  const loadedRef = useRef(false)
+  const containerRef =
+    useRef<HTMLDivElement | null>(null)
+
+  const mapRef =
+    useRef<maplibregl.Map | null>(null)
+
+  const projectionRef =
+    useRef<ProjectionMode>(projectionMode)
+
+  const imageryRef =
+    useRef<ImageryMode>(imageryMode)
+
+  const readyRef =
+    useRef(false)
 
   /*
-   * CREATE MAP ONCE
+   * Always keep the latest projection available
+   * to MapLibre callbacks.
    */
   useEffect(() => {
-    if (!containerRef.current) return
+    projectionRef.current =
+      projectionMode
+  }, [projectionMode])
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
+  /*
+   * Create MapLibre once.
+   */
+  useEffect(() => {
+    if (!containerRef.current) {
+      return
+    }
 
-      // Start with MAP imagery.
-      style: mapStyle,
+    const map =
+      new maplibregl.Map({
+        container: containerRef.current,
 
-      center: [0, 20],
-      zoom: 1.6,
+        style:
+          imageryMode === 'sat'
+            ? satStyle
+            : mapStyle,
 
-      minZoom: 0.5,
-      maxZoom: 18,
+        center: [0, 20],
+        zoom: 1.35,
 
-      attributionControl: false,
-      renderWorldCopies: false,
+        minZoom: 0.5,
+        maxZoom: 18,
 
-      // Keep rendering efficient.
-      fadeDuration: 0,
-      crossSourceCollisions: false,
-    })
+        attributionControl: false,
+        renderWorldCopies: false,
+        fadeDuration: 0,
+        crossSourceCollisions: false,
+      })
 
     mapRef.current = map
 
-    map.once('load', () => {
-      loadedRef.current = true
+    /*
+     * Apply the currently selected projection.
+     */
+    const applyProjection = () => {
+      if (!readyRef.current) {
+        return
+      }
 
-      map.setProjection({
-        type: projectionMode === '3d' ? 'globe' : 'mercator',
-      })
-    })
+      if (
+        projectionRef.current === '3d'
+      ) {
+        map.setProjection({
+          type: 'globe',
+        })
+      } else {
+        map.setProjection({
+          type: 'mercator',
+        })
+      }
+
+      map.resize()
+      map.triggerRepaint()
+    }
+
+    /*
+     * Every time a style finishes loading,
+     * restore the selected projection.
+     */
+    const handleStyleLoad = () => {
+      console.log(
+        'SONAR: style loaded',
+      )
+
+      readyRef.current = true
+
+      applyProjection()
+    }
+
+    map.on(
+      'style.load',
+      handleStyleLoad,
+    )
+
+    const handleResize = () => {
+      map.resize()
+    }
+
+    window.addEventListener(
+      'resize',
+      handleResize,
+    )
 
     return () => {
-      loadedRef.current = false
+      readyRef.current = false
+
+      window.removeEventListener(
+        'resize',
+        handleResize,
+      )
+
+      map.off(
+        'style.load',
+        handleStyleLoad,
+      )
+
       map.remove()
+
       mapRef.current = null
     }
   }, [])
 
   /*
-   * CHANGE PROJECTION ONLY
+   * 3D / 2D
    *
-   * 3D <-> 2D does NOT reload the map.
-   * This makes switching much smoother.
+   * This is completely independent from MAP / SAT.
    */
   useEffect(() => {
     const map = mapRef.current
 
-    if (!map || !loadedRef.current) return
+    if (
+      !map ||
+      !readyRef.current
+    ) {
+      return
+    }
 
-    map.setProjection({
-      type: projectionMode === '3d' ? 'globe' : 'mercator',
-    })
+    console.log(
+      'SONAR projection:',
+      projectionMode,
+    )
+
+    if (
+      projectionMode === '3d'
+    ) {
+      map.setProjection({
+        type: 'globe',
+      })
+    } else {
+      map.setProjection({
+        type: 'mercator',
+      })
+    }
+
+    map.resize()
+    map.triggerRepaint()
   }, [projectionMode])
 
   /*
-   * CHANGE IMAGERY ONLY
-   *
-   * MAP <-> SAT requires changing the style,
-   * but we do it only when imagery actually changes.
+   * MAP / SAT
    */
   useEffect(() => {
     const map = mapRef.current
-    const container = containerRef.current
 
-    if (!map || !container || !loadedRef.current) return
+    if (
+      !map ||
+      !readyRef.current
+    ) {
+      return
+    }
 
-    const newStyle =
+    /*
+     * Do NOT compare against imageryRef here.
+     * React already tells us that imageryMode changed.
+     */
+    console.log(
+      'SONAR imagery:',
+      imageryMode,
+    )
+
+    const nextStyle =
       imageryMode === 'sat'
         ? satStyle
         : mapStyle
 
-    container.style.opacity = '0'
+    /*
+     * Update the ref so future style loads know
+     * which imagery is selected.
+     */
+    imageryRef.current =
+      imageryMode
 
-    const handleStyleLoad = () => {
-      // Restore the currently selected projection
-      // after the new imagery has loaded.
-      map.setProjection({
-        type: projectionMode === '3d' ? 'globe' : 'mercator',
-      })
+    /*
+     * Keep the current projection.
+     */
+    const selectedProjection =
+      projectionRef.current
 
-      requestAnimationFrame(() => {
-        container.style.opacity = '1'
-      })
+    /*
+     * When the new style finishes loading,
+     * restore the current 3D/2D mode.
+     */
+    const handleNewStyle = () => {
+      console.log(
+        'SONAR new style ready:',
+        imageryMode,
+      )
+
+      if (
+        selectedProjection === '3d'
+      ) {
+        map.setProjection({
+          type: 'globe',
+        })
+      } else {
+        map.setProjection({
+          type: 'mercator',
+        })
+      }
+
+      map.resize()
+      map.triggerRepaint()
     }
 
-    map.once('style.load', handleStyleLoad)
+    map.once(
+      'style.load',
+      handleNewStyle,
+    )
 
-    map.setStyle(newStyle, {
-      diff: false,
-    })
-
-    return () => {
-      map.off('style.load', handleStyleLoad)
-    }
-  }, [imageryMode, projectionMode])
+    map.setStyle(
+      nextStyle,
+      {
+        diff: false,
+      },
+    )
+  }, [imageryMode])
 
   return (
     <div
       ref={containerRef}
       className="absolute inset-0 h-full w-full"
       style={{
+        width: '100%',
+        height: '100%',
         background: '#000000',
-        transition: 'opacity 250ms ease',
       }}
     />
   )
