@@ -36,8 +36,10 @@ export const mapStyle: StyleSpecification = {
         'raster-opacity': 0.72,
         'raster-saturation': -1,
         'raster-contrast': -0.15,
-        'raster-brightness-min': 0.28,
-        'raster-brightness-max': 0.82,
+
+        // ONLY CHANGE: tune the ocean toward the reference
+        'raster-brightness-min': 0.35,
+        'raster-brightness-max': 0.72,
       },
     },
 
@@ -46,7 +48,6 @@ export const mapStyle: StyleSpecification = {
       type: 'fill',
       source: 'maplibre',
       'source-layer': 'countries',
-
       paint: {
         'fill-color': '#252a30',
         'fill-opacity': 0.96,
@@ -58,10 +59,8 @@ export const mapStyle: StyleSpecification = {
       type: 'line',
       source: 'maplibre',
       'source-layer': 'countries',
-
       paint: {
         'line-color': '#596169',
-
         'line-width': [
           'interpolate',
           ['linear'],
@@ -77,10 +76,8 @@ export const mapStyle: StyleSpecification = {
           10,
           1.1,
         ],
-
         'line-opacity': 0.65,
       },
-
       layout: {
         'line-cap': 'round',
         'line-join': 'round',
@@ -95,11 +92,9 @@ export const satStyle: StyleSpecification = {
   sources: {
     satellite: {
       type: 'raster',
-
       tiles: [
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       ],
-
       tileSize: 256,
       attribution: '© Esri',
     },
@@ -109,7 +104,6 @@ export const satStyle: StyleSpecification = {
     {
       id: 'satellite-background',
       type: 'background',
-
       paint: {
         'background-color': '#000000',
       },
@@ -119,7 +113,6 @@ export const satStyle: StyleSpecification = {
       id: 'satellite',
       type: 'raster',
       source: 'satellite',
-
       paint: {
         'raster-opacity': 0.82,
         'raster-saturation': -0.35,

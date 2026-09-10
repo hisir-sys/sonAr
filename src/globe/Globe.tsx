@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
+
 import * as maplibregl from 'maplibre-gl'
+
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 import type {
@@ -63,14 +65,19 @@ export default function Globe({
             : mapStyle,
 
         center: [0, 20],
+
         zoom: 1.35,
 
         minZoom: 0.5,
+
         maxZoom: 18,
 
         attributionControl: false,
+
         renderWorldCopies: false,
+
         fadeDuration: 0,
+
         crossSourceCollisions: false,
       })
 
@@ -97,6 +104,7 @@ export default function Globe({
       }
 
       map.resize()
+
       map.triggerRepaint()
     }
 
@@ -180,6 +188,7 @@ export default function Globe({
     }
 
     map.resize()
+
     map.triggerRepaint()
   }, [projectionMode])
 
@@ -246,6 +255,7 @@ export default function Globe({
       }
 
       map.resize()
+
       map.triggerRepaint()
     }
 
