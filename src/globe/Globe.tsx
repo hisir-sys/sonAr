@@ -14,6 +14,8 @@ import {
   satStyle,
 } from './style'
 
+import { createDayNightLayer } from './dayNight'
+
 interface GlobeProps {
   projectionMode: ProjectionMode
   imageryMode: ImageryMode
@@ -109,8 +111,25 @@ export default function Globe({
     }
 
     /*
+     * Add the SONAR day/night layer.
+     *
+     * This has to happen after the style is loaded
+     * because custom layers belong to the current style.
+     */
+    const addDayNightLayer = () => {
+      if (
+        !map.getLayer('sonar-day-night')
+      ) {
+        map.addLayer(
+          createDayNightLayer(),
+        )
+      }
+    }
+
+    /*
      * Every time a style finishes loading,
-     * restore the selected projection.
+     * restore the selected projection and
+     * restore the day/night layer.
      */
     const handleStyleLoad = () => {
       console.log(
@@ -120,6 +139,10 @@ export default function Globe({
       readyRef.current = true
 
       applyProjection()
+
+      addDayNightLayer()
+
+      map.triggerRepaint()
     }
 
     map.on(
@@ -158,7 +181,7 @@ export default function Globe({
   /*
    * 3D / 2D
    *
-   * This is completely independent from MAP / SAT.
+   * Completely independent from MAP / SAT.
    */
   useEffect(() => {
     const map = mapRef.current
@@ -205,10 +228,6 @@ export default function Globe({
       return
     }
 
-    /*
-     * Do NOT compare against imageryRef here.
-     * React already tells us that imageryMode changed.
-     */
     console.log(
       'SONAR imagery:',
       imageryMode,
@@ -233,8 +252,8 @@ export default function Globe({
       projectionRef.current
 
     /*
-     * When the new style finishes loading,
-     * restore the current 3D/2D mode.
+     * Restore projection and day/night layer
+     * after the new style finishes loading.
      */
     const handleNewStyle = () => {
       console.log(
@@ -252,6 +271,18 @@ export default function Globe({
         map.setProjection({
           type: 'mercator',
         })
+      }
+
+      /*
+       * setStyle() removes custom layers,
+       * so add the day/night layer again.
+       */
+      if (
+        !map.getLayer('sonar-day-night')
+      ) {
+        map.addLayer(
+          createDayNightLayer(),
+        )
       }
 
       map.resize()
