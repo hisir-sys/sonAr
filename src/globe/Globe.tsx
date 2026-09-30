@@ -1,542 +1,239 @@
-import { useEffect, useRef, useState } from 'react'
-
+import { useEffect, useRef, useState, useCallback } from 'react'
 import * as maplibregl from 'maplibre-gl'
-
 import 'maplibre-gl/dist/maplibre-gl.css'
-
 import './navigation.css'
 
-import type {
-  ProjectionMode,
-  ImageryMode,
-} from '../types'
-
-import {
-  mapStyle,
-  satStyle,
-} from './style'
-
+import type { ProjectionMode, ImageryMode } from '../types'
+import { mapStyle, satStyle } from './style'
 import { createDayNightLayer } from './dayNight'
+
+export interface SearchLocation {
+  lat: number
+  lon: number
+  name: string
+}
 
 interface GlobeProps {
   projectionMode: ProjectionMode
   imageryMode: ImageryMode
+  searchLocation?: SearchLocation | null
 }
 
 export default function Globe({
   projectionMode,
   imageryMode,
+  searchLocation,
 }: GlobeProps) {
-  const containerRef =
-    useRef<HTMLDivElement | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<maplibregl.Map | null>(null)
 
-  const mapRef =
-    useRef<maplibregl.Map | null>(null)
+  // Keep refs synchronized with props for async lifecycle events
+  const projectionRef = useRef<ProjectionMode>(projectionMode)
+  const readyRef = useRef(false)
+  const pendingLocationRef = useRef<SearchLocation | null>(null)
 
-  const projectionRef =
-    useRef<ProjectionMode>(
-      projectionMode,
-    )
-
-  const readyRef =
-    useRef(false)
-
-  const [bearing, setBearing] =
-    useState(0)
-
-  const [scaleLabel, setScaleLabel] =
-    useState('300 km')
-
-  const [scaleWidth, setScaleWidth] =
-    useState(90)
+  const [bearing, setBearing] = useState(0)
+  const [scaleLabel, setScaleLabel] = useState('300 km')
+  const [scaleWidth, setScaleWidth] = useState(90)
 
   /*
-   * Keep latest projection available
-   * to the MapLibre lifecycle.
+   * Keep latest projection available to the MapLibre lifecycle.
    */
   useEffect(() => {
-    projectionRef.current =
-      projectionMode
+    projectionRef.current = projectionMode
   }, [projectionMode])
+
+  // Centralized scale and orientation sync
+  const syncNavigationState = useCallback(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    setBearing(map.getBearing())
+
+    const zoom = map.getZoom()
+    if (zoom < 1.5) {
+      setScaleLabel('3000 km')
+      setScaleWidth(112)
+    } else if (zoom < 2.5) {
+      setScaleLabel('1000 km')
+      setScaleWidth(108)
+    } else if (zoom < 3.5) {
+      setScaleLabel('500 km')
+      setScaleWidth(100)
+    } else if (zoom < 4.5) {
+      setScaleLabel('300 km')
+      setScaleWidth(92)
+    } else if (zoom < 5.5) {
+      setScaleLabel('100 km')
+      setScaleWidth(84)
+    } else if (zoom < 7) {
+      setScaleLabel('50 km')
+      setScaleWidth(76)
+    } else if (zoom < 9) {
+      setScaleLabel('20 km')
+      setScaleWidth(68)
+    } else {
+      setScaleLabel('50 km')
+      setScaleWidth(58)
+    }
+  }, [])
+
+  // Helper to apply projection & custom layers safely
+  const applyRuntimeConfig = useCallback(() => {
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+
+    try {
+      if (projectionRef.current === '3d') {
+        map.setProjection({ type: 'globe' })
+      } else {
+        map.setProjection({ type: 'mercator' })
+      }
+
+      if (!map.getLayer('sonar-day-night')) {
+        map.addLayer(createDayNightLayer())
+      }
+
+      syncNavigationState()
+      map.resize()
+      map.triggerRepaint()
+    } catch (error) {
+      console.error('SONAR: configuration sync failed', error)
+    }
+  }, [syncNavigationState])
 
   /*
    * Create MapLibre ONCE.
    */
   useEffect(() => {
-    if (!containerRef.current) {
-      return
-    }
+    if (!containerRef.current) return
 
-    const map =
-      new maplibregl.Map({
-        container:
-          containerRef.current,
-
-        style:
-          imageryMode === 'sat'
-            ? satStyle
-            : mapStyle,
-
-        center: [0, 20],
-
-        zoom: 1.35,
-
-        minZoom: 0.5,
-
-        maxZoom: 18,
-
-        attributionControl: false,
-
-        renderWorldCopies: false,
-
-        fadeDuration: 0,
-
-        crossSourceCollisions: false,
-      })
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: imageryMode === 'sat' ? satStyle : mapStyle,
+      center: [0, 20],
+      zoom: 1.35,
+      minZoom: 0.5,
+      maxZoom: 18,
+      attributionControl: false,
+      renderWorldCopies: false,
+      fadeDuration: 0,
+      crossSourceCollisions: false,
+    })
 
     mapRef.current = map
 
-    /*
-     * -----------------------------
-     * Navigation state
-     * -----------------------------
-     */
+    const handleStyleLoad = () => {
+      console.log('SONAR: style loaded')
 
-    const updateNavigation =
-      () => {
-        setBearing(
-          map.getBearing(),
-        )
+      readyRef.current = true
+      applyRuntimeConfig()
 
-        const zoom =
-          map.getZoom()
-
-        /*
-         * Visual scale indicator.
-         *
-         * This is intentionally a
-         * SONAR-style approximation,
-         * not MapLibre's default widget.
-         */
-        if (zoom < 1.5) {
-          setScaleLabel('3000 km')
-          setScaleWidth(112)
-        } else if (zoom < 2.5) {
-          setScaleLabel('1000 km')
-          setScaleWidth(108)
-        } else if (zoom < 3.5) {
-          setScaleLabel('500 km')
-          setScaleWidth(100)
-        } else if (zoom < 4.5) {
-          setScaleLabel('300 km')
-          setScaleWidth(92)
-        } else if (zoom < 5.5) {
-          setScaleLabel('100 km')
-          setScaleWidth(84)
-        } else if (zoom < 7) {
-          setScaleLabel('50 km')
-          setScaleWidth(76)
-        } else if (zoom < 9) {
-          setScaleLabel('20 km')
-          setScaleWidth(68)
-        } else {
-          setScaleLabel('5 km')
-          setScaleWidth(58)
-        }
+      // Handle location updates queued prior to style readiness
+      const pendingLocation = pendingLocationRef.current
+      if (pendingLocation) {
+        map.flyTo({
+          center: [pendingLocation.lon, pendingLocation.lat],
+          zoom: 5,
+          duration: 1400,
+          essential: true,
+        })
+        pendingLocationRef.current = null
       }
+    }
 
-    /*
-     * -----------------------------
-     * Day / night
-     * -----------------------------
-     */
+    const handleResize = () => map.resize()
 
-    const addDayNight =
-      () => {
-        if (
-          !readyRef.current
-        ) {
-          return
-        }
-
-        if (
-          map.getLayer(
-            'sonar-day-night',
-          )
-        ) {
-          return
-        }
-
-        try {
-          map.addLayer(
-            createDayNightLayer(),
-          )
-
-          console.log(
-            'SONAR: day/night layer added',
-          )
-        } catch (error) {
-          console.error(
-            'SONAR: failed to add day/night layer',
-            error,
-          )
-        }
-      }
-
-    /*
-     * -----------------------------
-     * Projection
-     * -----------------------------
-     */
-
-    const applyProjection =
-      () => {
-        /*
-         * VERY IMPORTANT:
-         *
-         * Never call setProjection
-         * before style.load.
-         */
-        if (
-          !readyRef.current
-        ) {
-          return
-        }
-
-        try {
-          if (
-            projectionRef.current ===
-            '3d'
-          ) {
-            map.setProjection({
-              type: 'globe',
-            })
-          } else {
-            map.setProjection({
-              type: 'mercator',
-            })
-          }
-
-          map.resize()
-          map.triggerRepaint()
-        } catch (error) {
-          console.error(
-            'SONAR: projection error',
-            error,
-          )
-        }
-      }
-
-    /*
-     * -----------------------------
-     * Initial style load
-     * -----------------------------
-     */
-
-    const handleStyleLoad =
-      () => {
-        console.log(
-          'SONAR: style loaded',
-        )
-
-        /*
-         * Mark MapLibre ready BEFORE
-         * calling setProjection.
-         */
-        readyRef.current =
-          true
-
-        applyProjection()
-
-        addDayNight()
-
-        updateNavigation()
-
-        map.resize()
-
-        map.triggerRepaint()
-      }
-
-    map.on(
-      'style.load',
-      handleStyleLoad,
-    )
-
-    /*
-     * -----------------------------
-     * Navigation events
-     * -----------------------------
-     */
-
-    map.on(
-      'rotate',
-      updateNavigation,
-    )
-
-    map.on(
-      'zoom',
-      updateNavigation,
-    )
-
-    /*
-     * -----------------------------
-     * Window resize
-     * -----------------------------
-     */
-
-    const handleResize =
-      () => {
-        map.resize()
-      }
-
-    window.addEventListener(
-      'resize',
-      handleResize,
-    )
-
-    /*
-     * -----------------------------
-     * Cleanup
-     * -----------------------------
-     */
+    map.on('style.load', handleStyleLoad)
+    map.on('move', syncNavigationState)
+    window.addEventListener('resize', handleResize)
 
     return () => {
-      readyRef.current =
-        false
-
-      window.removeEventListener(
-        'resize',
-        handleResize,
-      )
-
-      map.off(
-        'style.load',
-        handleStyleLoad,
-      )
-
-      map.off(
-        'rotate',
-        updateNavigation,
-      )
-
-      map.off(
-        'zoom',
-        updateNavigation,
-      )
-
+      readyRef.current = false
+      window.removeEventListener('resize', handleResize)
+      map.off('style.load', handleStyleLoad)
+      map.off('move', syncNavigationState)
       map.remove()
-
-      mapRef.current =
-        null
+      mapRef.current = null
     }
   }, [])
 
   /*
-   * -----------------------------
    * Projection switching
-   * -----------------------------
    */
-
   useEffect(() => {
-    const map =
-      mapRef.current
-
-    /*
-     * This was the source of your
-     * "Style is not done loading"
-     * error.
-     */
-    if (
-      !map ||
-      !readyRef.current
-    ) {
-      return
+    if (readyRef.current) {
+      applyRuntimeConfig()
     }
-
-    try {
-      if (
-        projectionMode === '3d'
-      ) {
-        map.setProjection({
-          type: 'globe',
-        })
-      } else {
-        map.setProjection({
-          type: 'mercator',
-        })
-      }
-
-      map.resize()
-      map.triggerRepaint()
-    } catch (error) {
-      console.error(
-        'SONAR: projection switch failed',
-        error,
-      )
-    }
-  }, [projectionMode])
+  }, [projectionMode, applyRuntimeConfig])
 
   /*
-   * -----------------------------
    * Imagery switching
-   * -----------------------------
    */
-
   useEffect(() => {
-    const map =
-      mapRef.current
+    const map = mapRef.current
+    if (!map) return
 
-    if (
-      !map ||
-      !readyRef.current
-    ) {
-      return
+    readyRef.current = false
+    const nextStyle = imageryMode === 'sat' ? satStyle : mapStyle
+
+    const handleStyleSwitch = () => {
+      readyRef.current = true
+      applyRuntimeConfig()
+
+      const pendingLocation = pendingLocationRef.current
+      if (pendingLocation) {
+        map.flyTo({
+          center: [pendingLocation.lon, pendingLocation.lat],
+          zoom: 5,
+          duration: 1400,
+          essential: true,
+        })
+        pendingLocationRef.current = null
+      }
     }
 
-    const nextStyle =
-      imageryMode === 'sat'
-        ? satStyle
-        : mapStyle
+    map.once('style.load', handleStyleSwitch)
+    map.setStyle(nextStyle, { diff: false })
 
-    const selectedProjection =
-      projectionRef.current
-
-    /*
-     * The new style must finish
-     * loading BEFORE projection
-     * or day/night are applied.
-     */
-    const handleNewStyle =
-      () => {
-        console.log(
-          'SONAR: new style ready',
-          imageryMode,
-        )
-
-        readyRef.current =
-          true
-
-        try {
-          if (
-            selectedProjection ===
-            '3d'
-          ) {
-            map.setProjection({
-              type: 'globe',
-            })
-          } else {
-            map.setProjection({
-              type: 'mercator',
-            })
-          }
-
-          /*
-           * Re-add day/night because
-           * setStyle removes custom layers.
-           */
-          if (
-            !map.getLayer(
-              'sonar-day-night',
-            )
-          ) {
-            map.addLayer(
-              createDayNightLayer(),
-            )
-          }
-
-          map.resize()
-
-          map.triggerRepaint()
-
-          updateNavigationAfterStyle()
-        } catch (error) {
-          console.error(
-            'SONAR: style switch failed',
-            error,
-          )
-        }
-      }
-
-    const updateNavigationAfterStyle =
-      () => {
-        const zoom =
-          map.getZoom()
-
-        if (zoom < 1.5) {
-          setScaleLabel('3000 km')
-          setScaleWidth(112)
-        } else if (zoom < 2.5) {
-          setScaleLabel('1000 km')
-          setScaleWidth(108)
-        } else if (zoom < 3.5) {
-          setScaleLabel('500 km')
-          setScaleWidth(100)
-        } else if (zoom < 4.5) {
-          setScaleLabel('300 km')
-          setScaleWidth(92)
-        } else if (zoom < 5.5) {
-          setScaleLabel('100 km')
-          setScaleWidth(84)
-        } else if (zoom < 7) {
-          setScaleLabel('50 km')
-          setScaleWidth(76)
-        } else if (zoom < 9) {
-          setScaleLabel('20 km')
-          setScaleWidth(68)
-        } else {
-          setScaleLabel('5 km')
-          setScaleWidth(58)
-        }
-      }
-
-    map.once(
-      'style.load',
-      handleNewStyle,
-    )
-
-    /*
-     * During setStyle, the style is
-     * temporarily NOT ready.
-     */
-    readyRef.current =
-      false
-
-    map.setStyle(
-      nextStyle,
-      {
-        diff: false,
-      },
-    )
-  }, [imageryMode])
+    return () => {
+      map.off('style.load', handleStyleSwitch)
+    }
+  }, [imageryMode, applyRuntimeConfig])
 
   /*
-   * -----------------------------
-   * Custom controls
-   * -----------------------------
+   * Search Location Fly-To Trigger
    */
+  useEffect(() => {
+    if (!searchLocation) return
 
-  const zoomIn =
-    () => {
-      mapRef.current?.zoomIn({
-        duration: 350,
-      })
-    }
+    pendingLocationRef.current = searchLocation
 
-  const zoomOut =
-    () => {
-      mapRef.current?.zoomOut({
-        duration: 350,
-      })
-    }
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
 
-  const resetCompass =
-    () => {
-      mapRef.current?.easeTo({
-        bearing: 0,
-        pitch: 0,
-        duration: 450,
-      })
-    }
+    map.flyTo({
+      center: [searchLocation.lon, searchLocation.lat],
+      zoom: 5,
+      duration: 1400,
+      essential: true,
+    })
+
+    pendingLocationRef.current = null
+  }, [searchLocation])
+
+  /*
+   * Custom Navigation Controls
+   */
+  const zoomIn = () => mapRef.current?.zoomIn({ duration: 350 })
+  const zoomOut = () => mapRef.current?.zoomOut({ duration: 350 })
+  const resetCompass = () => {
+    mapRef.current?.easeTo({
+      bearing: 0,
+      pitch: 0,
+      duration: 450,
+    })
+  }
 
   return (
     <div
@@ -545,15 +242,11 @@ export default function Globe({
       style={{
         width: '100%',
         height: '100%',
-        background:
-          '#000000',
+        background: '#000000',
       }}
     >
-
       {/* SONAR navigation */}
-
       <div className="sonar-navigation">
-
         <button
           type="button"
           className="sonar-nav-button sonar-compass"
@@ -564,8 +257,7 @@ export default function Globe({
           <span
             className="sonar-compass-arrow"
             style={{
-              transform:
-                `rotate(${bearing}deg)`,
+              transform: `rotate(${bearing}deg)`,
             }}
           >
             ↑
@@ -591,30 +283,19 @@ export default function Globe({
         >
           −
         </button>
-
       </div>
 
       {/* SONAR scale */}
-
       <div className="sonar-scale">
-
-        <span className="sonar-scale-label">
-          {scaleLabel}
-        </span>
-
+        <span className="sonar-scale-label">{scaleLabel}</span>
         <div
           className="sonar-scale-line"
-          style={{
-            width:
-              `${scaleWidth}px`,
-          }}
+          style={{ width: `${scaleWidth}px` }}
         >
           <span />
           <span />
         </div>
-
       </div>
-
     </div>
   )
 }
