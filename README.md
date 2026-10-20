@@ -1,6 +1,6 @@
 # SONAR
 
-SONAR is a minimal, dark intelligence globe built with React, TypeScript, Vite and MapLibre GL JS. It combines a monochrome basemap, satellite imagery, 2D/3D projection switching, solar day/night shading, place search, and source-attributed environmental/geographic overlays.
+SONAR is an original open-source spatial-intelligence console inspired by the broader live-globe experience of projects such as [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view). Built with React, TypeScript, Vite and MapLibre GL JS, it combines a dark instrument-panel interface, monochrome and satellite basemaps, 2D/3D projection switching, solar day/night shading, live place search, aircraft tracking, scheduled space-launch locations, and source-attributed environmental/geographic layers. It does not reuse God's Eye View source code or assets.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ No API key is required for the included public feeds. The application is a brows
 
 ## Controls
 
-- **Global layers:** earthquakes, wildfire events, current weather, and air quality.
+- **Global layers:** nearby aircraft from adsb.lol, upcoming launch-pad locations from The Space Devs, earthquakes, wildfire events, current weather, and air quality.
 - **Local layers:** nearby public-transit features, points of interest/public services, and EV chargers around the current map center.
 - **Search:** live place suggestions; choosing a result flies the globe to the location.
 - **Intelligence briefing:** summarizes successfully loaded source records and provides context/limitations.
@@ -43,7 +43,7 @@ Layer preferences are saved in the current browser's local storage. Use Settings
 
 | Layer | Source | What it represents |
 | --- | --- | --- |
-| Earthquakes | [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson) | USGS's past-24-hour GeoJSON feed; magnitudes and locations are source-reported. |
+| Aircraft | [adsb.lol](https://adsb.lol/) | Public ADS-B aircraft reports near the current map center; coverage and freshness depend on receivers and the public endpoint. This is not military or complete worldwide coverage. |\n| Upcoming launches | [The Space Devs / Launch Library 2](https://thespacedevs.com/) | Scheduled launch records plotted at launch-pad coordinates; this is a launch schedule, not a live rocket tracker. |\n| Earthquakes | [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson) | USGS's past-24-hour GeoJSON feed; magnitudes and locations are source-reported. |
 | Wildfire events | [NASA EONET](https://eonet.gsfc.nasa.gov/) | Open wildfire events that have point geometries available in the EONET feed. This is not a live fire perimeter. |
 | Weather | [Open-Meteo](https://open-meteo.com/) | Current weather fields for the current map-center coordinate. |
 | Air quality | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) | Modeled AQI and particulate estimates at the current map center, not a regulatory monitoring-station observation. |
