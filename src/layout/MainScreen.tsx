@@ -38,7 +38,8 @@ export default function MainScreen() {
   const [center, setCenter] = useState<MapCenter>({ lat: 20, lon: 0 })
   const [activeLayers, setActiveLayers] = useState<LayerState>(readLayerPreferences)
   const [dayNightEnabled, setDayNightEnabled] = useState(true)
-  const { data, statuses } = useIntelligenceData(activeLayers, center)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const { data, statuses } = useIntelligenceData(activeLayers, center, refreshKey)
 
   useEffect(() => {
     try { localStorage.setItem('sonar-layer-preferences', JSON.stringify(activeLayers)) } catch { /* Storage can be unavailable in private contexts. */ }
@@ -85,6 +86,8 @@ export default function MainScreen() {
         selectedLocation={searchLocation}
         dayNightEnabled={dayNightEnabled}
         onDayNightChange={setDayNightEnabled}
+        onResetLayers={() => setActiveLayers(DEFAULT_LAYERS)}
+        onRefresh={() => setRefreshKey((value) => value + 1)}
         projectionMode={projectionMode}
         imageryMode={imageryMode}
       />
