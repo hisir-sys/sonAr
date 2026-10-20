@@ -124,7 +124,7 @@ export default function MainScreen() {
       <div className="fixed bottom-0 left-16 right-0 z-10 flex items-center justify-between gap-2 border-t border-border/50 bg-background/75 px-3 py-1.5 text-[10px] text-muted-foreground backdrop-blur-sm">
         <span>sonAr</span>
         <span>{projectionMode.toUpperCase()} · {imageryMode.toUpperCase()}</span>
-        <span className="hidden sm:inline">© OpenStreetMap · {imageryMode === 'sat' ? 'Imagery © Esri' : 'MapLibre demo tiles'}</span>
+        <span className="hidden sm:inline">{imageryMode === 'sat' ? 'Borders © MapLibre · Imagery © Esri' : '© OpenStreetMap · MapLibre demo tiles'}</span>
         <span>{enabledCount} layers · {readyCount} online</span>
       </div>
     </div>
