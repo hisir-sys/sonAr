@@ -30,7 +30,7 @@ export const DEFAULT_LAYERS: LayerState = {
   transit: false,
   pointsOfInterest: false,
   chargers: false,
-  flights: true,
+  flights: false,
   launches: false,
 }
 
