@@ -157,7 +157,7 @@ async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal):
   return { data: asCollection(features), source: 'OpenStreetMap · nearby mapped features' }
 }
 
-export function useIntelligenceData(activeLayers: LayerState, center: MapCenter) {
+export function useIntelligenceData(activeLayers: LayerState, center: MapCenter, refreshKey = 0) {
   const [data, setData] = useState<Record<LayerKey, FeatureCollection>>({
     weather: EMPTY_FEATURES,
     earthquakes: EMPTY_FEATURES,
@@ -197,7 +197,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter)
     }))
 
     return () => controller.abort()
-  }, [activeLayers, center.lat, center.lon])
+  }, [activeLayers, center.lat, center.lon, refreshKey])
 
   return { data, statuses }
 }
