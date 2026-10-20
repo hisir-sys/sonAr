@@ -158,7 +158,7 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
         content.appendChild(link)
       }
 
-      new maplibregl.Popup({ closeButton: true, maxWidth: '300px' })
+      new maplibregl.Popup({ closeButton: true, maxWidth: '300px', className: 'sonar-data-popup' })
         .setLngLat(event.lngLat)
         .setDOMContent(content)
         .addTo(map)
