@@ -71,7 +71,7 @@ export default function Globe({
       map.setProjection(projectionRef.current === '3d' ? { type: 'globe' } : { type: 'mercator' })
       if (dayNightEnabledRef.current) {
         if (!map.getLayer('sonar-day-night')) {
-          const firstOverlay = ['earthquakes', 'fires', 'weather', 'airQuality', 'transit', 'pointsOfInterest', 'chargers']
+          const firstOverlay = ['flights', 'launches', 'earthquakes', 'fires', 'weather', 'airQuality', 'transit', 'pointsOfInterest', 'chargers']
             .map((key) => 'sonar-points-' + key)
             .find((layerId) => Boolean(map.getLayer(layerId)))
           map.addLayer(createDayNightLayer(), firstOverlay)
