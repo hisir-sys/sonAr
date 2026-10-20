@@ -35,12 +35,12 @@ export default function IconRail({ activePanel, onSelect }: IconRailProps) {
           )
         })}
 
-        {/* AI Briefing — disabled, reserved for v2 */}
         <button
           type="button"
-          aria-label="AI Briefing (coming soon)"
-          disabled
-          className="flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-lg text-muted-foreground/30"
+          aria-label="Intelligence briefing"
+          title="Intelligence briefing"
+          onClick={() => onSelect('briefing')}
+          className={`flex h-11 w-11 items-center justify-center rounded-lg transition-colors ${activePanel === 'briefing' ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-card hover:text-foreground'}`}
         >
           <Sparkles size={20} strokeWidth={1.75} />
         </button>
