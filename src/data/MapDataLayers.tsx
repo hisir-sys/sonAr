@@ -10,6 +10,8 @@ const layerColors: Record<LayerKey, string> = {
   transit: '#68d9c3',
   pointsOfInterest: '#e8e8e8',
   chargers: '#e6d36d',
+  flights: '#62e6ff',
+  launches: '#ff7ad9',
 }
 
 const layerLabels: Record<LayerKey, string> = {
@@ -20,6 +22,8 @@ const layerLabels: Record<LayerKey, string> = {
   transit: 'Transit',
   pointsOfInterest: 'Points of interest',
   chargers: 'EV chargers',
+  flights: 'Aircraft',
+  launches: 'Space launches',
 }
 
 interface MapDataLayersProps {
@@ -52,7 +56,7 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
             paint: {
               'circle-radius': key === 'earthquakes'
                 ? ['interpolate', ['linear'], ['get', 'magnitude'], 0, 3, 3, 5, 5, 8, 7, 11]
-                : key === 'fires' ? 5 : 5,
+                : key === 'fires' ? 5 : key === 'flights' ? 3 : key === 'launches' ? 7 : 5,
               'circle-color': layerColors[key],
               'circle-opacity': 0.88,
               'circle-stroke-color': '#0a0a0a',
@@ -91,7 +95,11 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
             ? ['temperatureC', 'humidityPercent', 'windKmh', 'time']
             : key === 'airQuality'
               ? ['usAqi', 'europeanAqi', 'pm25', 'pm10', 'time']
-              : ['kind']
+              : key === 'flights'
+                ? ['callsign', 'registration', 'altitudeFt', 'groundSpeedKt', 'headingDeg', 'aircraftType', 'seenSeconds']
+                : key === 'launches'
+                  ? ['net', 'status', 'provider', 'pad']
+                  : ['kind']
       for (const name of preferred) {
         const value = properties[name]
         if (value === undefined || value === null || value === '') continue
