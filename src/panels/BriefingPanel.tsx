@@ -178,7 +178,7 @@ export default function BriefingPanel({ onClose, activeLayers, statuses, data, c
         <section className="rounded-lg border border-border/60 bg-card/30 p-3">
           <h3 className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">Method & confidence</h3>
           <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-            The current briefing is a deterministic, source-grounded synthesis of loaded feed records. It is not an external large-language-model response, does not infer unobserved events, and does not replace source verification.
+            The observed-data summary and analyst notes are deterministic and source-grounded. If Gemini is configured, the separate AI section is model-generated analysis and may be wrong; it does not replace source verification.
           </p>
           {enabled.map((key) => (
             <div key={key} className="mt-2 flex items-start justify-between gap-3 border-t border-border/40 pt-2 text-[9px]">
