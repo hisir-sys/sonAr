@@ -56,7 +56,7 @@ Data timestamps come from source records where available. The app also records w
 
 ## Briefing: evidence versus analysis
 
-The current briefing is a deterministic, source-grounded synthesis of the loaded feeds. It separates observations from analyst notes and explicitly warns about the limits of modeled air quality, map-center weather, and wildfire event points. **It is not currently a large-language-model-generated report.** A true LLM briefing needs a server-side integration and secret management; do not place private AI API keys in a `VITE_*` client environment variable because those values are bundled into public browser code.
+The observed-data summary is deterministic and source-grounded. An optional Gemini-backed section can generate a natural-language analysis from successfully loaded records when you supply your own Gemini API key in Settings. The AI prompt asks the model to separate source observations, cautious analysis, and verification gaps; its output is still fallible and must not be treated as verified fact. The key stays in application memory and is not saved to local storage, but it is sent directly from the browser to Google and can be inspected in browser developer tools. Use a restricted key, clear it when finished, and never commit it or place it in a `VITE_*` environment variable. Free-tier availability and quotas depend on Google's current terms.
 
 ## Reliability notes
 
