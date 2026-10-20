@@ -269,7 +269,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
   // prevents every small pan from re-requesting the same worldwide datasets.
   useEffect(() => {
     const controller = new AbortController()
-    const keys: LayerKey[] = ['earthquakes', 'fires', 'launches', 'iss']
+    const keys: LayerKey[] = ['earthquakes', 'fires', 'launches']
     const enabled = keys.filter((key) => activeLayers[key])
     const disabled = keys.filter((key) => !activeLayers[key])
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -304,7 +304,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
   // OSM features are nearby place searches.
   useEffect(() => {
     const controller = new AbortController()
-    const keys: LayerKey[] = ['flights', 'weather', 'airQuality', 'transit', 'pointsOfInterest', 'chargers']
+    const keys: LayerKey[] = ['weather', 'airQuality', 'transit', 'pointsOfInterest', 'chargers']
     const enabled = keys.filter((key) => activeLayers[key])
     const disabled = keys.filter((key) => !activeLayers[key])
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -332,7 +332,77 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
     }))
 
     return () => controller.abort()
-  }, [activeLayers.flights, activeLayers.weather, activeLayers.airQuality, activeLayers.transit, activeLayers.pointsOfInterest, activeLayers.chargers, lat, lon, refreshKey])
+  }, [activeLayers.weather, activeLayers.airQuality, activeLayers.transit, activeLayers.pointsOfInterest, activeLayers.chargers, lat, lon, refreshKey])
+
+  // Keep high-interest live tracks fresh without polling the slower Overpass
+  // endpoints or reloading unrelated layers. Failed polls preserve last-known data.
+  useEffect(() => {
+    if (!activeLayers.flights) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStatuses((current) => ({ ...current, flights: { state: 'idle', message: 'Layer disabled' } }))
+      return
+    }
+    let disposed = false
+    let firstLoad = true
+    let controller: AbortController | null = null
+    const poll = async () => {
+      controller?.abort()
+      controller = new AbortController()
+      const signal = controller.signal
+      if (firstLoad) {
+        setStatuses((current) => ({ ...current, flights: { ...current.flights, state: 'loading', message: 'Connecting to public ADS-B feed…' } }))
+      }
+      try {
+        const result = await loadLayer('flights', { lat, lon }, signal)
+        if (disposed || signal.aborted) return
+        setData((current) => ({ ...current, flights: result.data }))
+        setStatuses((current) => ({ ...current, flights: { state: 'ready', message: `${result.data.features.length} aircraft reports`, source: result.source, updatedAt: new Date().toISOString() } }))
+      } catch (error) {
+        if (disposed || signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, flights: { ...current.flights, state: 'error', message: `Aircraft feed unavailable: ${message}` } }))
+      } finally {
+        firstLoad = false
+      }
+    }
+    void poll()
+    const interval = window.setInterval(() => { void poll() }, 60_000)
+    return () => { disposed = true; window.clearInterval(interval); controller?.abort() }
+  }, [activeLayers.flights, lat, lon, refreshKey])
+
+  useEffect(() => {
+    if (!activeLayers.iss) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStatuses((current) => ({ ...current, iss: { state: 'idle', message: 'Layer disabled' } }))
+      return
+    }
+    let disposed = false
+    let firstLoad = true
+    let controller: AbortController | null = null
+    const poll = async () => {
+      controller?.abort()
+      controller = new AbortController()
+      const signal = controller.signal
+      if (firstLoad) {
+        setStatuses((current) => ({ ...current, iss: { ...current.iss, state: 'loading', message: 'Connecting to ISS position feed…' } }))
+      }
+      try {
+        const result = await loadLayer('iss', { lat, lon }, signal)
+        if (disposed || signal.aborted) return
+        setData((current) => ({ ...current, iss: result.data }))
+        setStatuses((current) => ({ ...current, iss: { state: 'ready', message: 'ISS position updated', source: result.source, updatedAt: new Date().toISOString() } }))
+      } catch (error) {
+        if (disposed || signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, iss: { ...current.iss, state: 'error', message: `ISS feed unavailable: ${message}` } }))
+      } finally {
+        firstLoad = false
+      }
+    }
+    void poll()
+    const interval = window.setInterval(() => { void poll() }, 60_000)
+    return () => { disposed = true; window.clearInterval(interval); controller?.abort() }
+  }, [activeLayers.iss, lat, lon, refreshKey])
 
   return { data, statuses }
 }
