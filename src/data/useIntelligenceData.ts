@@ -244,16 +244,18 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
   })
   const [statuses, setStatuses] = useState<LayerStatuses>(initialStatuses)
 
+  // Global event feeds do not depend on the map center. Keeping them separate
+  // prevents every small pan from re-requesting the same worldwide datasets.
   useEffect(() => {
     const controller = new AbortController()
-    const enabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => activeLayers[key])
-    const disabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => !activeLayers[key])
-    // This is the loading-state transition for a newly started external request.
+    const keys: LayerKey[] = ['earthquakes', 'fires', 'launches']
+    const enabled = keys.filter((key) => activeLayers[key])
+    const disabled = keys.filter((key) => !activeLayers[key])
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatuses((current) => {
       const next = { ...current }
       for (const key of disabled) next[key] = { state: 'idle', message: 'Layer disabled' }
-      for (const key of enabled) next[key] = { state: 'loading', message: 'Fetching latest source data…' }
+      for (const key of enabled) next[key] = { ...current[key], state: 'loading', message: 'Fetching latest source data…' }
       return next
     })
 
@@ -269,12 +271,47 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
       } catch (error) {
         if (controller.signal.aborted) return
         const message = error instanceof Error ? error.message : 'Unknown data-source error'
-        setStatuses((current) => ({ ...current, [key]: { state: 'error', message: `Could not load data: ${message}` } }))
+        setStatuses((current) => ({ ...current, [key]: { ...current[key], state: 'error', message: `Could not load data: ${message}` } }))
       }
     }))
 
     return () => controller.abort()
-  }, [activeLayers, lat, lon, refreshKey])
+  }, [activeLayers.earthquakes, activeLayers.fires, activeLayers.launches, refreshKey])
+
+  // These layers genuinely depend on the selected map location. Aircraft are
+  // fetched around the viewport center; weather/air quality are point samples;
+  // OSM features are nearby place searches.
+  useEffect(() => {
+    const controller = new AbortController()
+    const keys: LayerKey[] = ['flights', 'weather', 'airQuality', 'transit', 'pointsOfInterest', 'chargers']
+    const enabled = keys.filter((key) => activeLayers[key])
+    const disabled = keys.filter((key) => !activeLayers[key])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStatuses((current) => {
+      const next = { ...current }
+      for (const key of disabled) next[key] = { state: 'idle', message: 'Layer disabled' }
+      for (const key of enabled) next[key] = { ...current[key], state: 'loading', message: 'Fetching latest source data…' }
+      return next
+    })
+
+    void Promise.all(enabled.map(async (key) => {
+      try {
+        const result = await loadLayer(key, { lat, lon }, controller.signal)
+        if (controller.signal.aborted) return
+        setData((current) => ({ ...current, [key]: result.data }))
+        setStatuses((current) => ({
+          ...current,
+          [key]: { state: 'ready', message: `${result.data.features.length} mapped features`, source: result.source, updatedAt: new Date().toISOString() },
+        }))
+      } catch (error) {
+        if (controller.signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, [key]: { ...current[key], state: 'error', message: `Could not load data: ${message}` } }))
+      }
+    }))
+
+    return () => controller.abort()
+  }, [activeLayers.flights, activeLayers.weather, activeLayers.airQuality, activeLayers.transit, activeLayers.pointsOfInterest, activeLayers.chargers, lat, lon, refreshKey])
 
   return { data, statuses }
 }
