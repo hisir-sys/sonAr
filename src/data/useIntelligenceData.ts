@@ -10,6 +10,7 @@ export type LayerKey =
   | 'chargers'
   | 'flights'
   | 'launches'
+  | 'iss'
 
 export type LayerState = Record<LayerKey, boolean>
 export type GeoFeature = {
@@ -32,6 +33,7 @@ export const DEFAULT_LAYERS: LayerState = {
   chargers: false,
   flights: false,
   launches: false,
+  iss: false,
 }
 
 export const EMPTY_FEATURES: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -46,6 +48,7 @@ const initialStatuses = (): LayerStatuses => ({
   chargers: { state: 'idle', message: 'Layer disabled' },
   flights: { state: 'idle', message: 'Layer disabled' },
   launches: { state: 'idle', message: 'Layer disabled' },
+  iss: { state: 'idle', message: 'Layer disabled' },
 })
 
 function pointFeature(lon: number, lat: number, properties: GeoFeature['properties']): GeoFeature {
@@ -73,6 +76,23 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<JsonRecord> 
 }
 
 async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal): Promise<{ data: FeatureCollection; source: string }> {
+  if (key === 'iss') {
+    const data = await fetchJson('https://api.wheretheiss.at/v1/satellites/25544', signal)
+    const lat = Number(data.latitude)
+    const lon = Number(data.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('ISS position response was incomplete')
+    return { data: asCollection([pointFeature(lon, lat, {
+      title: 'International Space Station',
+      latitude: lat,
+      longitude: lon,
+      altitudeKm: Number(data.altitude ?? 0),
+      velocityKmh: Number(data.velocity ?? 0),
+      visibility: String(data.visibility ?? 'unknown'),
+      source: 'Where the ISS at? · current ISS position',
+      url: 'https://spotthestation.nasa.gov/',
+    })]), source: 'Where the ISS at? · current position (single spacecraft)' }
+  }
+
   if (key === 'flights') {
     const url = new URL(`https://api.adsb.lol/v2/lat/${center.lat}/lon/${center.lon}/dist/250`)
     const data = await fetchJson(url.toString(), signal)
@@ -241,6 +261,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
     chargers: EMPTY_FEATURES,
     flights: EMPTY_FEATURES,
     launches: EMPTY_FEATURES,
+    iss: EMPTY_FEATURES,
   })
   const [statuses, setStatuses] = useState<LayerStatuses>(initialStatuses)
 
@@ -248,7 +269,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
   // prevents every small pan from re-requesting the same worldwide datasets.
   useEffect(() => {
     const controller = new AbortController()
-    const keys: LayerKey[] = ['earthquakes', 'fires', 'launches']
+    const keys: LayerKey[] = ['earthquakes', 'fires', 'launches', 'iss']
     const enabled = keys.filter((key) => activeLayers[key])
     const disabled = keys.filter((key) => !activeLayers[key])
     // eslint-disable-next-line react-hooks/set-state-in-effect
