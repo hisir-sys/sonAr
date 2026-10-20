@@ -96,7 +96,12 @@ export const satStyle: StyleSpecification = {
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       ],
       tileSize: 256,
-      attribution: '© Esri',
+      attribution: 'Imagery © Esri',
+    },
+    maplibre: {
+      type: 'vector',
+      url: 'https://demotiles.maplibre.org/tiles/tiles.json',
+      attribution: 'Country borders © MapLibre demo tiles',
     },
   },
 
@@ -119,6 +124,22 @@ export const satStyle: StyleSpecification = {
         'raster-contrast': 0.15,
         'raster-brightness-min': 0,
         'raster-brightness-max': 0.65,
+      },
+    },
+
+    {
+      id: 'satellite-country-borders',
+      type: 'line',
+      source: 'maplibre',
+      'source-layer': 'countries',
+      paint: {
+        'line-color': '#c8cdd2',
+        'line-opacity': 0.38,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.25, 4, 0.6, 8, 0.9],
+      },
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
       },
     },
   ],
