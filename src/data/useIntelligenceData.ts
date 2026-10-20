@@ -175,6 +175,7 @@ async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal):
 }
 
 export function useIntelligenceData(activeLayers: LayerState, center: MapCenter, refreshKey = 0) {
+  const { lat, lon } = center
   const [data, setData] = useState<Record<LayerKey, FeatureCollection>>({
     weather: EMPTY_FEATURES,
     earthquakes: EMPTY_FEATURES,
@@ -190,6 +191,8 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
     const controller = new AbortController()
     const enabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => activeLayers[key])
     const disabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => !activeLayers[key])
+    // This is the loading-state transition for a newly started external request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatuses((current) => {
       const next = { ...current }
       for (const key of disabled) next[key] = { state: 'idle', message: 'Layer disabled' }
@@ -199,7 +202,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
 
     void Promise.all(enabled.map(async (key) => {
       try {
-        const result = await loadLayer(key, center, controller.signal)
+        const result = await loadLayer(key, { lat, lon }, controller.signal)
         if (controller.signal.aborted) return
         setData((current) => ({ ...current, [key]: result.data }))
         setStatuses((current) => ({
@@ -214,7 +217,7 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
     }))
 
     return () => controller.abort()
-  }, [activeLayers, center.lat, center.lon, refreshKey])
+  }, [activeLayers, lat, lon, refreshKey])
 
   return { data, statuses }
 }
