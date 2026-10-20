@@ -1,0 +1,203 @@
+import { useEffect, useState } from 'react'
+
+export type LayerKey =
+  | 'weather'
+  | 'earthquakes'
+  | 'fires'
+  | 'airQuality'
+  | 'transit'
+  | 'pointsOfInterest'
+  | 'chargers'
+
+export type LayerState = Record<LayerKey, boolean>
+export type GeoFeature = {
+  type: 'Feature'
+  geometry: { type: 'Point'; coordinates: [number, number] }
+  properties: Record<string, string | number | boolean | null>
+}
+export type FeatureCollection = { type: 'FeatureCollection'; features: GeoFeature[] }
+export type LayerStatus = { state: 'idle' | 'loading' | 'ready' | 'error'; message: string; updatedAt?: string; source?: string }
+export type LayerStatuses = Record<LayerKey, LayerStatus>
+export type MapCenter = { lat: number; lon: number }
+
+export const DEFAULT_LAYERS: LayerState = {
+  weather: false,
+  earthquakes: true,
+  fires: false,
+  airQuality: false,
+  transit: false,
+  pointsOfInterest: false,
+  chargers: false,
+}
+
+export const EMPTY_FEATURES: FeatureCollection = { type: 'FeatureCollection', features: [] }
+
+const initialStatuses = (): LayerStatuses => ({
+  weather: { state: 'idle', message: 'Layer disabled' },
+  earthquakes: { state: 'idle', message: 'Layer disabled' },
+  fires: { state: 'idle', message: 'Layer disabled' },
+  airQuality: { state: 'idle', message: 'Layer disabled' },
+  transit: { state: 'idle', message: 'Layer disabled' },
+  pointsOfInterest: { state: 'idle', message: 'Layer disabled' },
+  chargers: { state: 'idle', message: 'Layer disabled' },
+})
+
+function pointFeature(lon: number, lat: number, properties: GeoFeature['properties']): GeoFeature {
+  return { type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties }
+}
+
+function asCollection(features: GeoFeature[]): FeatureCollection {
+  return { type: 'FeatureCollection', features }
+}
+
+async function fetchJson(url: string, signal: AbortSignal) {
+  const response = await fetch(url, { signal, headers: { Accept: 'application/json' } })
+  if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`)
+  return response.json()
+}
+
+async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal): Promise<{ data: FeatureCollection; source: string }> {
+  if (key === 'earthquakes') {
+    const data = await fetchJson('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson', signal)
+    const features = (data.features ?? []).filter((f: any) => f.geometry?.type === 'Point').map((f: any) => {
+      const [lon, lat] = f.geometry.coordinates
+      return pointFeature(lon, lat, {
+        title: String(f.properties?.title ?? 'Earthquake'),
+        magnitude: Number(f.properties?.mag ?? 0),
+        place: String(f.properties?.place ?? 'Location unavailable'),
+        time: Number(f.properties?.time ?? 0),
+        url: String(f.properties?.url ?? 'https://earthquake.usgs.gov/earthquakes/map/'),
+        source: 'USGS Earthquake Hazards Program',
+      })
+    })
+    return { data: asCollection(features), source: 'USGS · earthquakes from the past 24 hours' }
+  }
+
+  if (key === 'fires') {
+    const data = await fetchJson('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=200', signal)
+    const features: GeoFeature[] = []
+    for (const event of data.events ?? []) {
+      const geometry = [...(event.geometry ?? [])].reverse().find((g: any) => g.type === 'Point')
+      if (!geometry || !Array.isArray(geometry.coordinates)) continue
+      const [lon, lat] = geometry.coordinates
+      features.push(pointFeature(Number(lon), Number(lat), {
+        title: String(event.title ?? 'Wildfire event'),
+        date: String(geometry.date ?? ''),
+        url: String(event.sources?.[0]?.url ?? 'https://eonet.gsfc.nasa.gov/'),
+        source: 'NASA EONET',
+      }))
+    }
+    return { data: asCollection(features), source: 'NASA EONET · open wildfire events' }
+  }
+
+  if (key === 'weather') {
+    const url = new URL('https://api.open-meteo.com/v1/forecast')
+    url.searchParams.set('latitude', String(center.lat))
+    url.searchParams.set('longitude', String(center.lon))
+    url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code')
+    url.searchParams.set('timezone', 'UTC')
+    const data = await fetchJson(url.toString(), signal)
+    const current = data.current ?? {}
+    return { data: asCollection([pointFeature(center.lon, center.lat, {
+      title: 'Current weather at map center',
+      temperatureC: Number(current.temperature_2m ?? 0),
+      humidityPercent: Number(current.relative_humidity_2m ?? 0),
+      windKmh: Number(current.wind_speed_10m ?? 0),
+      weatherCode: Number(current.weather_code ?? -1),
+      time: String(current.time ?? ''),
+      source: 'Open-Meteo',
+    })]), source: 'Open-Meteo · current conditions' }
+  }
+
+  if (key === 'airQuality') {
+    const url = new URL('https://air-quality-api.open-meteo.com/v1/air-quality')
+    url.searchParams.set('latitude', String(center.lat))
+    url.searchParams.set('longitude', String(center.lon))
+    url.searchParams.set('current', 'european_aqi,us_aqi,pm2_5,pm10')
+    url.searchParams.set('timezone', 'UTC')
+    const data = await fetchJson(url.toString(), signal)
+    const current = data.current ?? {}
+    return { data: asCollection([pointFeature(center.lon, center.lat, {
+      title: 'Air quality at map center',
+      europeanAqi: Number(current.european_aqi ?? -1),
+      usAqi: Number(current.us_aqi ?? -1),
+      pm25: Number(current.pm2_5 ?? -1),
+      pm10: Number(current.pm10 ?? -1),
+      time: String(current.time ?? ''),
+      source: 'Open-Meteo Air Quality',
+    })]), source: 'Open-Meteo · modeled air quality' }
+  }
+
+  const radius = 18000
+  const selector = key === 'transit'
+    ? 'node(around:RADIUS,LAT,LON)[public_transport];node(around:RADIUS,LAT,LON)[highway=bus_stop];node(around:RADIUS,LAT,LON)[railway=station];'
+    : key === 'chargers'
+      ? 'node(around:RADIUS,LAT,LON)[amenity=charging_station];'
+      : 'node(around:RADIUS,LAT,LON)[amenity~"^(hospital|school|police|fire_station|pharmacy|shelter)$"];node(around:RADIUS,LAT,LON)[tourism];'
+  const query = `[out:json][timeout:20];(${selector.replaceAll('RADIUS', String(radius)).replaceAll('LAT', String(center.lat)).replaceAll('LON', String(center.lon))});out center 80;`
+  const response = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams({ data: query }),
+  })
+  if (!response.ok) throw new Error(`OpenStreetMap Overpass returned HTTP ${response.status}`)
+  const data = await response.json()
+  const features = (data.elements ?? []).flatMap((element: any) => {
+    const lat = Number(element.lat ?? element.center?.lat)
+    const lon = Number(element.lon ?? element.center?.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+    return [pointFeature(lon, lat, {
+      title: String(element.tags?.name ?? element.tags?.amenity ?? element.tags?.public_transport ?? element.tags?.railway ?? 'Map feature'),
+      kind: key,
+      source: 'OpenStreetMap',
+      url: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+    })]
+  })
+  return { data: asCollection(features), source: 'OpenStreetMap · nearby mapped features' }
+}
+
+export function useIntelligenceData(activeLayers: LayerState, center: MapCenter) {
+  const [data, setData] = useState<Record<LayerKey, FeatureCollection>>({
+    weather: EMPTY_FEATURES,
+    earthquakes: EMPTY_FEATURES,
+    fires: EMPTY_FEATURES,
+    airQuality: EMPTY_FEATURES,
+    transit: EMPTY_FEATURES,
+    pointsOfInterest: EMPTY_FEATURES,
+    chargers: EMPTY_FEATURES,
+  })
+  const [statuses, setStatuses] = useState<LayerStatuses>(initialStatuses)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const enabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => activeLayers[key])
+    const disabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => !activeLayers[key])
+    setStatuses((current) => {
+      const next = { ...current }
+      for (const key of disabled) next[key] = { state: 'idle', message: 'Layer disabled' }
+      for (const key of enabled) next[key] = { state: 'loading', message: 'Fetching latest source data…' }
+      return next
+    })
+
+    void Promise.all(enabled.map(async (key) => {
+      try {
+        const result = await loadLayer(key, center, controller.signal)
+        if (controller.signal.aborted) return
+        setData((current) => ({ ...current, [key]: result.data }))
+        setStatuses((current) => ({
+          ...current,
+          [key]: { state: 'ready', message: `${result.data.features.length} mapped features`, source: result.source, updatedAt: new Date().toISOString() },
+        }))
+      } catch (error) {
+        if (controller.signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, [key]: { state: 'error', message: `Could not load data: ${message}` } }))
+      }
+    }))
+
+    return () => controller.abort()
+  }, [activeLayers, center.lat, center.lon])
+
+  return { data, statuses }
+}
