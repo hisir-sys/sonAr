@@ -23,6 +23,8 @@ interface Props {
   onRefresh: () => void
   projectionMode: ProjectionMode
   imageryMode: ImageryMode
+  geminiApiKey: string
+  onGeminiApiKeyChange: (value: string) => void
 }
 
 export default function PanelContainer({
@@ -41,6 +43,8 @@ export default function PanelContainer({
   onRefresh,
   projectionMode,
   imageryMode,
+  geminiApiKey,
+  onGeminiApiKeyChange,
 }: Props) {
   const isOpen = activePanel !== null
 
@@ -49,8 +53,8 @@ export default function PanelContainer({
       {activePanel === 'global' && <GlobalLayersPanel onClose={onClose} activeLayers={activeLayers} statuses={statuses} onToggle={onToggleLayer} />}
       {activePanel === 'local' && <LocalLayersPanel onClose={onClose} activeLayers={activeLayers} statuses={statuses} onToggle={onToggleLayer} />}
       {activePanel === 'search' && <SearchPanel onClose={onClose} onLocationSelect={onLocationSelect} />}
-      {activePanel === 'briefing' && <BriefingPanel onClose={onClose} activeLayers={activeLayers} statuses={statuses} data={data} center={center} selectedLocation={selectedLocation} onRefresh={onRefresh} />}
-      {activePanel === 'settings' && <SettingsPanel onClose={onClose} dayNightEnabled={dayNightEnabled} onDayNightChange={onDayNightChange} onResetLayers={onResetLayers} projectionMode={projectionMode} imageryMode={imageryMode} />}
+      {activePanel === 'briefing' && <BriefingPanel onClose={onClose} activeLayers={activeLayers} statuses={statuses} data={data} center={center} selectedLocation={selectedLocation} onRefresh={onRefresh} geminiApiKey={geminiApiKey} />}
+      {activePanel === 'settings' && <SettingsPanel onClose={onClose} dayNightEnabled={dayNightEnabled} onDayNightChange={onDayNightChange} onResetLayers={onResetLayers} projectionMode={projectionMode} imageryMode={imageryMode} geminiApiKey={geminiApiKey} onGeminiApiKeyChange={onGeminiApiKeyChange} />}
     </div>
   )
 }
