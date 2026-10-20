@@ -1,4 +1,5 @@
-import { Sparkles, X, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
+import { Sparkles, X, RefreshCw, BrainCircuit } from 'lucide-react'
 import type { LayerKey, LayerState, LayerStatuses, FeatureCollection, MapCenter } from '../data/useIntelligenceData'
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
   center: MapCenter
   selectedLocation: { lat: number; lon: number; name: string } | null
   onRefresh: () => void
+  geminiApiKey: string
 }
 
 function getFeatureValue(feature: FeatureCollection['features'][number], key: string): string | number | null {
@@ -16,7 +18,66 @@ function getFeatureValue(feature: FeatureCollection['features'][number], key: st
   return typeof value === 'string' || typeof value === 'number' ? value : null
 }
 
-export default function BriefingPanel({ onClose, activeLayers, statuses, data, center, selectedLocation, onRefresh }: Props) {
+export default function BriefingPanel({ onClose, activeLayers, statuses, data, center, selectedLocation, onRefresh, geminiApiKey }: Props) {
+  const [aiBriefing, setAiBriefing] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiGeneratedAt, setAiGeneratedAt] = useState('')
+
+  const generateAiBriefing = async () => {
+    if (!geminiApiKey.trim()) {
+      setAiError('Add your Gemini API key in Settings to generate an AI briefing.')
+      return
+    }
+    setAiLoading(true)
+    setAiError('')
+    try {
+      const evidence = (Object.keys(activeLayers) as LayerKey[])
+        .filter((key) => activeLayers[key] && statuses[key].state === 'ready')
+        .map((key) => ({
+          layer: key,
+          source: statuses[key].source,
+          retrievedAt: statuses[key].updatedAt,
+          features: data[key].features.slice(0, 35).map((feature) => feature.properties),
+        }))
+      const prompt = [
+        'You are SONAR, a cautious geospatial intelligence briefing assistant.',
+        'Use only the supplied source records. Do not invent events, coordinates, source links, impacts, causal claims, or confidence.',
+        'Clearly separate (1) observed facts in source data, (2) cautious analysis, and (3) information gaps / verification steps.',
+        'If data is missing or modeled, say so. Weather and air-quality values refer only to the map-center coordinate. Wildfire points are not perimeters.',
+        'Keep the response concise and structured. Do not give medical or emergency directives.',
+        'Map center: ' + center.lat.toFixed(4) + ', ' + center.lon.toFixed(4) + '.',
+        'Selected location: ' + (selectedLocation?.name ?? 'Not named') + '.',
+        'Enabled layers: ' + ((Object.keys(activeLayers) as LayerKey[]).filter((key) => activeLayers[key]).join(', ') || 'none') + '.',
+        'Retrieved source data (JSON): ' + JSON.stringify(evidence),
+      ].join('\n\n')
+      const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(geminiApiKey.trim())
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 900 },
+        }),
+      })
+      if (!response.ok) {
+        const details = await response.json().catch(() => null)
+        throw new Error(details?.error?.message ?? ('Gemini request failed (HTTP ' + response.status + ')'))
+      }
+      const result = await response.json()
+      const text = (result.candidates?.[0]?.content?.parts ?? [])
+        .map((part: { text?: string }) => part.text ?? '')
+        .join('\n')
+        .trim()
+      if (!text) throw new Error('Gemini returned no briefing text.')
+      setAiBriefing(text)
+      setAiGeneratedAt(new Date().toISOString())
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AI briefing could not be generated.')
+    } finally {
+      setAiLoading(false)
+    }
+  };
   const enabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => activeLayers[key])
   const ready = enabled.filter((key) => statuses[key].state === 'ready')
   const errors = enabled.filter((key) => statuses[key].state === 'error')
@@ -100,6 +161,20 @@ export default function BriefingPanel({ onClose, activeLayers, statuses, data, c
           </div>
         </section>
 
+
+        <section className="rounded-lg border border-primary/30 bg-primary/[0.06] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80"><BrainCircuit size={12} /> AI-generated briefing</h3>
+            <button type="button" onClick={generateAiBriefing} disabled={aiLoading || !geminiApiKey.trim()} className="rounded border border-border px-2 py-1 text-[9px] text-foreground transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-40">
+              {aiLoading ? 'Analyzing…' : aiBriefing ? 'Regenerate' : 'Generate'}
+            </button>
+          </div>
+          {!geminiApiKey.trim() && <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Add a Gemini API key in Settings to enable AI synthesis. Your key stays in memory for this session and is not saved to local storage.</p>}
+          {aiError && <p role="alert" className="mt-2 text-[10px] leading-4 text-red-300">{aiError}</p>}
+          {aiBriefing && <div className="mt-3 whitespace-pre-wrap text-xs leading-5 text-foreground/90">{aiBriefing}</div>}
+          {aiGeneratedAt && <p className="mt-2 text-[9px] text-muted-foreground/60">AI response generated {new Date(aiGeneratedAt).toLocaleTimeString()} · Gemini</p>}
+          <p className="mt-2 border-t border-border/50 pt-2 text-[9px] leading-4 text-muted-foreground/60">AI analysis may be wrong. Source records above remain the evidence; verify important claims against linked providers.</p>
+        </section>
         <section className="rounded-lg border border-border/60 bg-card/30 p-3">
           <h3 className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">Method & confidence</h3>
           <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
