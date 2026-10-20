@@ -8,9 +8,11 @@ interface Props {
   onResetLayers: () => void
   projectionMode: ProjectionMode
   imageryMode: ImageryMode
+  geminiApiKey: string
+  onGeminiApiKeyChange: (value: string) => void
 }
 
-export default function SettingsPanel({ onClose, dayNightEnabled, onDayNightChange, onResetLayers, projectionMode, imageryMode }: Props) {
+export default function SettingsPanel({ onClose, dayNightEnabled, onDayNightChange, onResetLayers, projectionMode, imageryMode, geminiApiKey, onGeminiApiKeyChange }: Props) {
   return (
     <div className="flex h-full flex-col p-5">
       <div className="mb-5 flex items-center justify-between">
@@ -47,6 +49,13 @@ export default function SettingsPanel({ onClose, dayNightEnabled, onDayNightChan
           <button type="button" onClick={onResetLayers} className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-xs text-foreground transition-colors hover:bg-card">
             <RotateCcw size={13} /> Reset layer preferences
           </button>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card/40 p-3">
+          <p className="text-xs font-medium text-foreground">Gemini AI briefing</p>
+          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">Optional: add your own Gemini API key to generate a source-grounded briefing. The key is held in memory only and is not saved in this browser.</p>
+          <input type="password" value={geminiApiKey} onChange={(event) => onGeminiApiKeyChange(event.target.value)} autoComplete="off" placeholder="Paste Gemini API key" aria-label="Gemini API key" className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none" />
+          <p className="mt-2 text-[9px] leading-4 text-amber-200/80">The key is sent directly from this browser to Google when you generate a briefing. Use a restricted key and clear this field when finished. Never commit it to GitHub.</p>
         </div>
 
         <div className="rounded-lg border border-border/60 p-3">
