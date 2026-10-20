@@ -1,6 +1,6 @@
 # SONAR
 
-SONAR is an original open-source spatial-intelligence console inspired by the broader live-globe experience of projects such as [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view). Built with React, TypeScript, Vite and MapLibre GL JS, it combines a dark instrument-panel interface, monochrome and satellite basemaps, 2D/3D projection switching, solar day/night shading, live place search, aircraft tracking, scheduled space-launch locations, and source-attributed environmental/geographic layers. It does not reuse God's Eye View source code or assets.
+SONAR is an original open-source spatial-intelligence console inspired by the broader live-globe experience of projects such as [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view). Built with React, TypeScript, Vite and MapLibre GL JS, it combines a dark instrument-panel interface, monochrome and satellite basemaps, 2D/3D projection switching, solar day/night shading, live place search, aircraft tracking, current International Space Station position, scheduled space-launch locations, and source-attributed environmental/geographic layers. It does not reuse God's Eye View source code or assets.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ No API key is required for the included public feeds. The application is a brows
 
 ## Controls
 
-- **Global layers:** nearby aircraft from adsb.lol, upcoming launch-pad locations from The Space Devs, earthquakes, wildfire events, current weather, and air quality.
+- **Global layers:** nearby aircraft from adsb.lol, upcoming launch-pad locations from The Space Devs, the current ISS position from Where the ISS at? (ISS only; not general satellite tracking), earthquakes, wildfire events, current weather, and air quality.
 - **Local layers:** nearby public-transit features, points of interest/public services, and EV chargers around the current map center.
 - **Search:** live place suggestions; choosing a result flies the globe to the location.
 - **Intelligence briefing:** summarizes successfully loaded source records and provides context/limitations.
