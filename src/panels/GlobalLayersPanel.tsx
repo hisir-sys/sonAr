@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function GlobalLayersPanel({ onClose, activeLayers, statuses, onToggle }: Props) {
-  const keys: LayerKey[] = ['flights', 'launches', 'earthquakes', 'fires', 'weather', 'airQuality']
+  const keys: LayerKey[] = ['flights', 'launches', 'iss', 'earthquakes', 'fires', 'weather', 'airQuality']
   return (
     <div className="flex h-full flex-col p-5">
       <div className="mb-2 flex items-center justify-between">
