@@ -133,6 +133,8 @@ export default function Globe({
       map.remove()
       mapRef.current = null
     }
+  // The map is intentionally created once; later imagery/projection changes are handled by dedicated effects.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
