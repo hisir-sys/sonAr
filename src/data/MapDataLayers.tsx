@@ -66,7 +66,35 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
           })
         }
 
+        // Aircraft use a heading-aware glyph as well as the position dot. This
+        // makes the track direction visible without implying a predicted route.
+        const headingLayerId = 'sonar-heading-flights'
+        if (key === 'flights' && !map.getLayer(headingLayerId)) {
+          map.addLayer({
+            id: headingLayerId,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              'text-field': '▲',
+              'text-size': ['interpolate', ['linear'], ['zoom'], 1, 8, 5, 12, 10, 16],
+              'text-rotate': ['to-number', ['get', 'headingDeg'], 0],
+              'text-rotation-alignment': 'map',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+            },
+            paint: {
+              'text-color': '#a5f3fc',
+              'text-halo-color': '#07131b',
+              'text-halo-width': 1.5,
+              'text-opacity': 0.92,
+            },
+          })
+        }
+
         map.setLayoutProperty(layerId, 'visibility', activeLayers[key] ? 'visible' : 'none')
+        if (key === 'flights' && map.getLayer('sonar-heading-flights')) {
+          map.setLayoutProperty('sonar-heading-flights', 'visibility', activeLayers[key] ? 'visible' : 'none')
+        }
       }
     }
 
