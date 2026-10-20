@@ -131,7 +131,7 @@ async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal):
     url.searchParams.set('current', 'european_aqi,us_aqi,pm2_5,pm10')
     url.searchParams.set('timezone', 'UTC')
     const data = await fetchJson(url.toString(), signal)
-    const current = data.current ?? {}
+    const current = asRecord(data.current)
     return { data: asCollection([pointFeature(center.lon, center.lat, {
       title: 'Air quality at map center',
       europeanAqi: Number(current.european_aqi ?? -1),
