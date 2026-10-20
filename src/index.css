@@ -41,3 +41,49 @@ body {
   margin: 0;
   background: var(--background);
 }
+
+/* Instrument-panel motion: restrained, low-distraction, and reduced-motion aware. */
+@keyframes sonar-scanline {
+  0% { transform: translateY(-120%); opacity: 0; }
+  12% { opacity: .24; }
+  88% { opacity: .12; }
+  100% { transform: translateY(120%); opacity: 0; }
+}
+@keyframes sonar-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(103 232 249 / 0%); }
+  50% { box-shadow: 0 0 0 5px rgb(103 232 249 / 5%); }
+}
+@keyframes sonar-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sonar-live-surface {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.sonar-live-surface::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  inset: -120% 0 auto;
+  height: 70%;
+  background: linear-gradient(180deg, transparent, rgb(103 232 249 / 3%), transparent);
+  animation: sonar-scanline 9s linear infinite;
+}
+.sonar-live-dot { animation: sonar-pulse 2.8s ease-in-out infinite; }
+.sonar-panel-enter { animation: sonar-enter .28s ease-out both; }
+button, input { accent-color: #67e8f9; }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid rgb(103 232 249 / 75%);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
