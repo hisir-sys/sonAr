@@ -8,6 +8,9 @@ export type LayerKey =
   | 'transit'
   | 'pointsOfInterest'
   | 'chargers'
+  | 'flights'
+  | 'launches'
+  | 'iss'
 
 export type LayerState = Record<LayerKey, boolean>
 export type GeoFeature = {
@@ -28,6 +31,9 @@ export const DEFAULT_LAYERS: LayerState = {
   transit: false,
   pointsOfInterest: false,
   chargers: false,
+  flights: false,
+  launches: false,
+  iss: false,
 }
 
 export const EMPTY_FEATURES: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -40,6 +46,9 @@ const initialStatuses = (): LayerStatuses => ({
   transit: { state: 'idle', message: 'Layer disabled' },
   pointsOfInterest: { state: 'idle', message: 'Layer disabled' },
   chargers: { state: 'idle', message: 'Layer disabled' },
+  flights: { state: 'idle', message: 'Layer disabled' },
+  launches: { state: 'idle', message: 'Layer disabled' },
+  iss: { state: 'idle', message: 'Layer disabled' },
 })
 
 function pointFeature(lon: number, lat: number, properties: GeoFeature['properties']): GeoFeature {
@@ -67,6 +76,72 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<JsonRecord> 
 }
 
 async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal): Promise<{ data: FeatureCollection; source: string }> {
+  if (key === 'iss') {
+    const data = await fetchJson('https://api.wheretheiss.at/v1/satellites/25544', signal)
+    const lat = Number(data.latitude)
+    const lon = Number(data.longitude)
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('ISS position response was incomplete')
+    return { data: asCollection([pointFeature(lon, lat, {
+      title: 'International Space Station',
+      latitude: lat,
+      longitude: lon,
+      altitudeKm: Number(data.altitude ?? 0),
+      velocityKmh: Number(data.velocity ?? 0),
+      visibility: String(data.visibility ?? 'unknown'),
+      source: 'Where the ISS at? · current ISS position',
+      url: 'https://spotthestation.nasa.gov/',
+    })]), source: 'Where the ISS at? · current position (single spacecraft)' }
+  }
+
+  if (key === 'flights') {
+    const url = new URL(`https://api.adsb.lol/v2/lat/${center.lat}/lon/${center.lon}/dist/250`)
+    const data = await fetchJson(url.toString(), signal)
+    const aircraft = arrayOfRecords(data.ac)
+    const features = aircraft.flatMap((item) => {
+      const lat = Number(item.lat)
+      const lon = Number(item.lon)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+      return [pointFeature(lon, lat, {
+        title: String(item.flight ?? item.r ?? item.hex ?? 'Aircraft'),
+        callsign: String(item.flight ?? '').trim(),
+        registration: String(item.r ?? ''),
+        altitudeFt: Number(item.alt_baro ?? 0),
+        groundSpeedKt: Number(item.gs ?? 0),
+        headingDeg: Number(item.track ?? 0),
+        aircraftType: String(item.t ?? ''),
+        icao24: String(item.hex ?? ''),
+        seenSeconds: Number(item.seen ?? 0),
+        source: 'adsb.lol',
+        url: 'https://globe.adsbexchange.com/',
+      })]
+    })
+    return { data: asCollection(features), source: 'adsb.lol · aircraft near map center (live feed)' }
+  }
+
+  if (key === 'launches') {
+    const url = new URL('https://ll.thespacedevs.com/2.3.0/launch/upcoming/')
+    url.searchParams.set('limit', '30')
+    url.searchParams.set('mode', 'normal')
+    const data = await fetchJson(url.toString(), signal)
+    const results = arrayOfRecords(data.results)
+    const features = results.flatMap((item) => {
+      const pad = asRecord(item.pad)
+      const location = asRecord(pad.location)
+      const lat = Number(pad.latitude ?? location.latitude)
+      const lon = Number(pad.longitude ?? location.longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+      return [pointFeature(lon, lat, {
+        title: String(item.name ?? 'Upcoming launch'),
+        net: String(item.net ?? ''),
+        status: String(asRecord(item.status).name ?? 'Scheduled'),
+        provider: String(asRecord(item.launch_service_provider).name ?? 'Unknown provider'),
+        pad: String(pad.name ?? ''),
+        source: 'The Space Devs · Launch Library 2',
+        url: String(item.url ?? 'https://thespacedevs.com/'),
+      })]
+    })
+    return { data: asCollection(features), source: 'The Space Devs · scheduled launch pads' }
+  }
   if (key === 'earthquakes') {
     const data = await fetchJson('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson', signal)
     const features = arrayOfRecords(data.features)
@@ -184,19 +259,24 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
     transit: EMPTY_FEATURES,
     pointsOfInterest: EMPTY_FEATURES,
     chargers: EMPTY_FEATURES,
+    flights: EMPTY_FEATURES,
+    launches: EMPTY_FEATURES,
+    iss: EMPTY_FEATURES,
   })
   const [statuses, setStatuses] = useState<LayerStatuses>(initialStatuses)
 
+  // Global event feeds do not depend on the map center. Keeping them separate
+  // prevents every small pan from re-requesting the same worldwide datasets.
   useEffect(() => {
     const controller = new AbortController()
-    const enabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => activeLayers[key])
-    const disabled = (Object.keys(activeLayers) as LayerKey[]).filter((key) => !activeLayers[key])
-    // This is the loading-state transition for a newly started external request.
+    const keys: LayerKey[] = ['earthquakes', 'fires', 'launches']
+    const enabled = keys.filter((key) => activeLayers[key])
+    const disabled = keys.filter((key) => !activeLayers[key])
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStatuses((current) => {
       const next = { ...current }
       for (const key of disabled) next[key] = { state: 'idle', message: 'Layer disabled' }
-      for (const key of enabled) next[key] = { state: 'loading', message: 'Fetching latest source data…' }
+      for (const key of enabled) next[key] = { ...current[key], state: 'loading', message: 'Fetching latest source data…' }
       return next
     })
 
@@ -212,12 +292,117 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
       } catch (error) {
         if (controller.signal.aborted) return
         const message = error instanceof Error ? error.message : 'Unknown data-source error'
-        setStatuses((current) => ({ ...current, [key]: { state: 'error', message: `Could not load data: ${message}` } }))
+        setStatuses((current) => ({ ...current, [key]: { ...current[key], state: 'error', message: `Could not load data: ${message}` } }))
       }
     }))
 
     return () => controller.abort()
-  }, [activeLayers, lat, lon, refreshKey])
+  }, [activeLayers.earthquakes, activeLayers.fires, activeLayers.launches, refreshKey])
+
+  // These layers genuinely depend on the selected map location. Aircraft are
+  // fetched around the viewport center; weather/air quality are point samples;
+  // OSM features are nearby place searches.
+  useEffect(() => {
+    const controller = new AbortController()
+    const keys: LayerKey[] = ['weather', 'airQuality', 'transit', 'pointsOfInterest', 'chargers']
+    const enabled = keys.filter((key) => activeLayers[key])
+    const disabled = keys.filter((key) => !activeLayers[key])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStatuses((current) => {
+      const next = { ...current }
+      for (const key of disabled) next[key] = { state: 'idle', message: 'Layer disabled' }
+      for (const key of enabled) next[key] = { ...current[key], state: 'loading', message: 'Fetching latest source data…' }
+      return next
+    })
+
+    void Promise.all(enabled.map(async (key) => {
+      try {
+        const result = await loadLayer(key, { lat, lon }, controller.signal)
+        if (controller.signal.aborted) return
+        setData((current) => ({ ...current, [key]: result.data }))
+        setStatuses((current) => ({
+          ...current,
+          [key]: { state: 'ready', message: `${result.data.features.length} mapped features`, source: result.source, updatedAt: new Date().toISOString() },
+        }))
+      } catch (error) {
+        if (controller.signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, [key]: { ...current[key], state: 'error', message: `Could not load data: ${message}` } }))
+      }
+    }))
+
+    return () => controller.abort()
+  }, [activeLayers.weather, activeLayers.airQuality, activeLayers.transit, activeLayers.pointsOfInterest, activeLayers.chargers, lat, lon, refreshKey])
+
+  // Keep high-interest live tracks fresh without polling the slower Overpass
+  // endpoints or reloading unrelated layers. Failed polls preserve last-known data.
+  useEffect(() => {
+    if (!activeLayers.flights) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStatuses((current) => ({ ...current, flights: { state: 'idle', message: 'Layer disabled' } }))
+      return
+    }
+    let disposed = false
+    let firstLoad = true
+    let controller: AbortController | null = null
+    const poll = async () => {
+      controller?.abort()
+      controller = new AbortController()
+      const signal = controller.signal
+      if (firstLoad) {
+        setStatuses((current) => ({ ...current, flights: { ...current.flights, state: 'loading', message: 'Connecting to public ADS-B feed…' } }))
+      }
+      try {
+        const result = await loadLayer('flights', { lat, lon }, signal)
+        if (disposed || signal.aborted) return
+        setData((current) => ({ ...current, flights: result.data }))
+        setStatuses((current) => ({ ...current, flights: { state: 'ready', message: `${result.data.features.length} aircraft reports`, source: result.source, updatedAt: new Date().toISOString() } }))
+      } catch (error) {
+        if (disposed || signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, flights: { ...current.flights, state: 'error', message: `Aircraft feed unavailable: ${message}` } }))
+      } finally {
+        firstLoad = false
+      }
+    }
+    void poll()
+    const interval = window.setInterval(() => { void poll() }, 60_000)
+    return () => { disposed = true; window.clearInterval(interval); controller?.abort() }
+  }, [activeLayers.flights, lat, lon, refreshKey])
+
+  useEffect(() => {
+    if (!activeLayers.iss) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStatuses((current) => ({ ...current, iss: { state: 'idle', message: 'Layer disabled' } }))
+      return
+    }
+    let disposed = false
+    let firstLoad = true
+    let controller: AbortController | null = null
+    const poll = async () => {
+      controller?.abort()
+      controller = new AbortController()
+      const signal = controller.signal
+      if (firstLoad) {
+        setStatuses((current) => ({ ...current, iss: { ...current.iss, state: 'loading', message: 'Connecting to ISS position feed…' } }))
+      }
+      try {
+        const result = await loadLayer('iss', { lat, lon }, signal)
+        if (disposed || signal.aborted) return
+        setData((current) => ({ ...current, iss: result.data }))
+        setStatuses((current) => ({ ...current, iss: { state: 'ready', message: 'ISS position updated', source: result.source, updatedAt: new Date().toISOString() } }))
+      } catch (error) {
+        if (disposed || signal.aborted) return
+        const message = error instanceof Error ? error.message : 'Unknown data-source error'
+        setStatuses((current) => ({ ...current, iss: { ...current.iss, state: 'error', message: `ISS feed unavailable: ${message}` } }))
+      } finally {
+        firstLoad = false
+      }
+    }
+    void poll()
+    const interval = window.setInterval(() => { void poll() }, 60_000)
+    return () => { disposed = true; window.clearInterval(interval); controller?.abort() }
+  }, [activeLayers.iss, lat, lon, refreshKey])
 
   return { data, statuses }
 }

@@ -10,6 +10,9 @@ const layerColors: Record<LayerKey, string> = {
   transit: '#68d9c3',
   pointsOfInterest: '#e8e8e8',
   chargers: '#e6d36d',
+  flights: '#62e6ff',
+  launches: '#ff7ad9',
+  iss: '#b6ff6a',
 }
 
 const layerLabels: Record<LayerKey, string> = {
@@ -20,6 +23,9 @@ const layerLabels: Record<LayerKey, string> = {
   transit: 'Transit',
   pointsOfInterest: 'Points of interest',
   chargers: 'EV chargers',
+  flights: 'Aircraft',
+  launches: 'Space launches',
+  iss: 'International Space Station',
 }
 
 interface MapDataLayersProps {
@@ -52,7 +58,7 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
             paint: {
               'circle-radius': key === 'earthquakes'
                 ? ['interpolate', ['linear'], ['get', 'magnitude'], 0, 3, 3, 5, 5, 8, 7, 11]
-                : key === 'fires' ? 5 : 5,
+                : key === 'fires' ? 5 : key === 'flights' ? 3 : key === 'launches' || key === 'iss' ? 7 : 5,
               'circle-color': layerColors[key],
               'circle-opacity': 0.88,
               'circle-stroke-color': '#0a0a0a',
@@ -62,7 +68,35 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
           })
         }
 
+        // Aircraft use a heading-aware glyph as well as the position dot. This
+        // makes the track direction visible without implying a predicted route.
+        const headingLayerId = 'sonar-heading-flights'
+        if (key === 'flights' && !map.getLayer(headingLayerId)) {
+          map.addLayer({
+            id: headingLayerId,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              'text-field': '▲',
+              'text-size': ['interpolate', ['linear'], ['zoom'], 1, 8, 5, 12, 10, 16],
+              'text-rotate': ['to-number', ['get', 'headingDeg'], 0],
+              'text-rotation-alignment': 'map',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+            },
+            paint: {
+              'text-color': '#a5f3fc',
+              'text-halo-color': '#07131b',
+              'text-halo-width': 1.5,
+              'text-opacity': 0.92,
+            },
+          })
+        }
+
         map.setLayoutProperty(layerId, 'visibility', activeLayers[key] ? 'visible' : 'none')
+        if (key === 'flights' && map.getLayer('sonar-heading-flights')) {
+          map.setLayoutProperty('sonar-heading-flights', 'visibility', activeLayers[key] ? 'visible' : 'none')
+        }
       }
     }
 
@@ -91,7 +125,13 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
             ? ['temperatureC', 'humidityPercent', 'windKmh', 'time']
             : key === 'airQuality'
               ? ['usAqi', 'europeanAqi', 'pm25', 'pm10', 'time']
-              : ['kind']
+              : key === 'flights'
+                ? ['callsign', 'registration', 'altitudeFt', 'groundSpeedKt', 'headingDeg', 'aircraftType', 'seenSeconds']
+                : key === 'launches'
+                  ? ['net', 'status', 'provider', 'pad']
+                  : key === 'iss'
+                    ? ['latitude', 'longitude', 'altitudeKm', 'velocityKmh', 'visibility']
+                  : ['kind']
       for (const name of preferred) {
         const value = properties[name]
         if (value === undefined || value === null || value === '') continue
@@ -122,7 +162,7 @@ export default function MapDataLayers({ map, data, activeLayers }: MapDataLayers
         content.appendChild(link)
       }
 
-      new maplibregl.Popup({ closeButton: true, maxWidth: '300px' })
+      new maplibregl.Popup({ closeButton: true, maxWidth: '300px', className: 'sonar-data-popup' })
         .setLngLat(event.lngLat)
         .setDOMContent(content)
         .addTo(map)

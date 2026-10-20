@@ -1,6 +1,9 @@
 import type { LayerKey, LayerState, LayerStatuses } from '../data/useIntelligenceData'
 
 const definitions: Record<LayerKey, { title: string; description: string }> = {
+  flights: { title: 'Aircraft', description: 'Public ADS-B aircraft reports near map center' },
+  launches: { title: 'Space launches', description: 'Scheduled launch-pad locations, not live vehicle tracking' },
+  iss: { title: 'ISS tracker', description: 'Current position of the International Space Station only' },
   weather: { title: 'Weather', description: 'Temperature, humidity and wind at map center' },
   earthquakes: { title: 'Earthquakes', description: 'USGS events from the past 24 hours' },
   fires: { title: 'Wildfire events', description: 'Open wildfire events from NASA EONET' },
