@@ -43,6 +43,7 @@ export default function MainScreen() {
   const [activeLayers, setActiveLayers] = useState<LayerState>(readLayerPreferences)
   const [dayNightEnabled, setDayNightEnabled] = useState(readDayNightPreference)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [geminiApiKey, setGeminiApiKey] = useState('')
   const { data, statuses } = useIntelligenceData(activeLayers, center, refreshKey)
 
   useEffect(() => {
@@ -95,6 +96,8 @@ export default function MainScreen() {
         onDayNightChange={setDayNightEnabled}
         onResetLayers={() => setActiveLayers(DEFAULT_LAYERS)}
         onRefresh={() => setRefreshKey((value) => value + 1)}
+        geminiApiKey={geminiApiKey}
+        onGeminiApiKeyChange={setGeminiApiKey}
         projectionMode={projectionMode}
         imageryMode={imageryMode}
       />
