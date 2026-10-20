@@ -20,6 +20,10 @@ const imageryModes: { id: ImageryMode; label: string }[] = [
 
 interface SearchLocation { lat: number; lon: number; name: string }
 
+function readDayNightPreference(): boolean {
+  try { return localStorage.getItem('sonar-day-night') !== 'false' } catch { return true }
+}
+
 function readLayerPreferences(): LayerState {
   try {
     const saved = localStorage.getItem('sonar-layer-preferences')
@@ -37,13 +41,16 @@ export default function MainScreen() {
   const [map, setMap] = useState<maplibregl.Map | null>(null)
   const [center, setCenter] = useState<MapCenter>({ lat: 20, lon: 0 })
   const [activeLayers, setActiveLayers] = useState<LayerState>(readLayerPreferences)
-  const [dayNightEnabled, setDayNightEnabled] = useState(true)
+  const [dayNightEnabled, setDayNightEnabled] = useState(readDayNightPreference)
   const [refreshKey, setRefreshKey] = useState(0)
   const { data, statuses } = useIntelligenceData(activeLayers, center, refreshKey)
 
   useEffect(() => {
     try { localStorage.setItem('sonar-layer-preferences', JSON.stringify(activeLayers)) } catch { /* Storage can be unavailable in private contexts. */ }
   }, [activeLayers])
+  useEffect(() => {
+    try { localStorage.setItem('sonar-day-night', String(dayNightEnabled)) } catch { /* Storage can be unavailable in private contexts. */ }
+  }, [dayNightEnabled])
 
   const handleSelect = (panel: PanelId) => setActivePanel((current) => current === panel ? null : panel)
   const handleLocationSelect = (location: SearchLocation) => {
@@ -114,6 +121,7 @@ export default function MainScreen() {
       <div className="fixed bottom-0 left-16 right-0 z-10 flex items-center justify-between gap-2 border-t border-border/50 bg-background/75 px-3 py-1.5 text-[10px] text-muted-foreground backdrop-blur-sm">
         <span>sonAr</span>
         <span>{projectionMode.toUpperCase()} · {imageryMode.toUpperCase()}</span>
+        <span className="hidden sm:inline">© OpenStreetMap · {imageryMode === 'sat' ? 'Imagery © Esri' : 'MapLibre demo tiles'}</span>
         <span>{enabledCount} layers · {readyCount} online</span>
       </div>
     </div>
