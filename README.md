@@ -37,13 +37,27 @@ No API key is required for the included public feeds. The application is a brows
 - **2D / 3D:** switch between Mercator and globe projection.
 - **MAP / SAT:** switch between the monochrome OpenStreetMap-based style and Esri World Imagery.
 
-Layer preferences are saved in the current browser's local storage. Use Settings to restore defaults. Data can be refreshed from the briefing panel. Clicking a mapped point opens its available properties and a source link.
+Layer preferences are saved in the current browser's local storage. Use Settings to restore defaults. Data can be refreshed from the briefing panel or with **R**. Aircraft and ISS positions poll independently every 60 seconds while enabled; the other feeds refresh when enabled, when the relevant map location changes, or when you request a refresh. Clicking a mapped point opens its available properties and a source link.
+
+### Keyboard shortcuts
+
+- **/** — open place search
+- **G** — global layers
+- **L** — local layers
+- **B** — intelligence briefing
+- **S** — settings
+- **R** — refresh active feeds
+- **0** — return to the global view
+- **Esc** — close the active panel
 
 ## Data sources and meaning
 
 | Layer | Source | What it represents |
 | --- | --- | --- |
-| Aircraft | [adsb.lol](https://adsb.lol/) | Public ADS-B aircraft reports near the current map center; coverage and freshness depend on receivers and the public endpoint. This is not military or complete worldwide coverage. |\n| Upcoming launches | [The Space Devs / Launch Library 2](https://thespacedevs.com/) | Scheduled launch records plotted at launch-pad coordinates; this is a launch schedule, not a live rocket tracker. |\n| Earthquakes | [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson) | USGS's past-24-hour GeoJSON feed; magnitudes and locations are source-reported. |
+| Aircraft | [adsb.lol](https://adsb.lol/) | Public ADS-B aircraft reports near the current map center; coverage and freshness depend on receivers and the public endpoint. This is not military or complete worldwide coverage. |
+| Upcoming launches | [The Space Devs / Launch Library 2](https://thespacedevs.com/) | Scheduled launch records plotted at launch-pad coordinates; this is a launch schedule, not a live rocket tracker. |
+| ISS tracker | [Where the ISS at?](https://wheretheiss.at/) | Current reported position of the International Space Station only; this is not general satellite tracking. |
+| Earthquakes | [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson) | USGS's past-24-hour GeoJSON feed; magnitudes and locations are source-reported. |
 | Wildfire events | [NASA EONET](https://eonet.gsfc.nasa.gov/) | Open wildfire events that have point geometries available in the EONET feed. This is not a live fire perimeter. |
 | Weather | [Open-Meteo](https://open-meteo.com/) | Current weather fields for the current map-center coordinate. |
 | Air quality | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) | Modeled AQI and particulate estimates at the current map center, not a regulatory monitoring-station observation. |
