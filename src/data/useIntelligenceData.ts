@@ -8,6 +8,8 @@ export type LayerKey =
   | 'transit'
   | 'pointsOfInterest'
   | 'chargers'
+  | 'flights'
+  | 'launches'
 
 export type LayerState = Record<LayerKey, boolean>
 export type GeoFeature = {
@@ -28,6 +30,8 @@ export const DEFAULT_LAYERS: LayerState = {
   transit: false,
   pointsOfInterest: false,
   chargers: false,
+  flights: true,
+  launches: false,
 }
 
 export const EMPTY_FEATURES: FeatureCollection = { type: 'FeatureCollection', features: [] }
@@ -40,6 +44,8 @@ const initialStatuses = (): LayerStatuses => ({
   transit: { state: 'idle', message: 'Layer disabled' },
   pointsOfInterest: { state: 'idle', message: 'Layer disabled' },
   chargers: { state: 'idle', message: 'Layer disabled' },
+  flights: { state: 'idle', message: 'Layer disabled' },
+  launches: { state: 'idle', message: 'Layer disabled' },
 })
 
 function pointFeature(lon: number, lat: number, properties: GeoFeature['properties']): GeoFeature {
@@ -67,6 +73,55 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<JsonRecord> 
 }
 
 async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal): Promise<{ data: FeatureCollection; source: string }> {
+  if (key === 'flights') {
+    const url = new URL(`https://api.adsb.lol/v2/lat/${center.lat}/lon/${center.lon}/dist/250`)
+    const data = await fetchJson(url.toString(), signal)
+    const aircraft = arrayOfRecords(data.ac)
+    const features = aircraft.flatMap((item) => {
+      const lat = Number(item.lat)
+      const lon = Number(item.lon)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+      return [pointFeature(lon, lat, {
+        title: String(item.flight ?? item.r ?? item.hex ?? 'Aircraft'),
+        callsign: String(item.flight ?? '').trim(),
+        registration: String(item.r ?? ''),
+        altitudeFt: Number(item.alt_baro ?? 0),
+        groundSpeedKt: Number(item.gs ?? 0),
+        headingDeg: Number(item.track ?? 0),
+        aircraftType: String(item.t ?? ''),
+        icao24: String(item.hex ?? ''),
+        seenSeconds: Number(item.seen ?? 0),
+        source: 'adsb.lol',
+        url: 'https://globe.adsbexchange.com/',
+      })]
+    })
+    return { data: asCollection(features), source: 'adsb.lol · aircraft near map center (live feed)' }
+  }
+
+  if (key === 'launches') {
+    const url = new URL('https://ll.thespacedevs.com/2.3.0/launch/upcoming/')
+    url.searchParams.set('limit', '30')
+    url.searchParams.set('mode', 'normal')
+    const data = await fetchJson(url.toString(), signal)
+    const results = arrayOfRecords(data.results)
+    const features = results.flatMap((item) => {
+      const pad = asRecord(item.pad)
+      const location = asRecord(pad.location)
+      const lat = Number(pad.latitude ?? location.latitude)
+      const lon = Number(pad.longitude ?? location.longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+      return [pointFeature(lon, lat, {
+        title: String(item.name ?? 'Upcoming launch'),
+        net: String(item.net ?? ''),
+        status: String(asRecord(item.status).name ?? 'Scheduled'),
+        provider: String(asRecord(item.launch_service_provider).name ?? 'Unknown provider'),
+        pad: String(pad.name ?? ''),
+        source: 'The Space Devs · Launch Library 2',
+        url: String(item.url ?? 'https://thespacedevs.com/'),
+      })]
+    })
+    return { data: asCollection(features), source: 'The Space Devs · scheduled launch pads' }
+  }
   if (key === 'earthquakes') {
     const data = await fetchJson('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson', signal)
     const features = arrayOfRecords(data.features)
@@ -184,6 +239,8 @@ export function useIntelligenceData(activeLayers: LayerState, center: MapCenter,
     transit: EMPTY_FEATURES,
     pointsOfInterest: EMPTY_FEATURES,
     chargers: EMPTY_FEATURES,
+    flights: EMPTY_FEATURES,
+    launches: EMPTY_FEATURES,
   })
   const [statuses, setStatuses] = useState<LayerStatuses>(initialStatuses)
 
