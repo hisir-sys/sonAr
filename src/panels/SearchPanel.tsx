@@ -83,13 +83,7 @@ export default function SearchPanel({
   useEffect(() => {
     const trimmedQuery = query.trim()
 
-    if (trimmedQuery.length < 2) {
-      setResults([])
-      setError('')
-      setLoading(false)
-      setHasSearched(false)
-      return
-    }
+    if (trimmedQuery.length < 2) return
 
     const controller = new AbortController()
     const requestId = ++requestIdRef.current
@@ -203,7 +197,13 @@ export default function SearchPanel({
         <input
           type="search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setResults([])
+            setError('')
+            setLoading(false)
+            setHasSearched(false)
+          }}
           placeholder="Search a city or place..."
           autoFocus
           autoComplete="off"
