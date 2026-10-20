@@ -50,40 +50,55 @@ function asCollection(features: GeoFeature[]): FeatureCollection {
   return { type: 'FeatureCollection', features }
 }
 
-async function fetchJson(url: string, signal: AbortSignal) {
+type JsonRecord = Record<string, unknown>
+
+function asRecord(value: unknown): JsonRecord {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {}
+}
+
+function arrayOfRecords(value: unknown): JsonRecord[] {
+  return Array.isArray(value) ? value.map(asRecord) : []
+}
+
+async function fetchJson(url: string, signal: AbortSignal): Promise<JsonRecord> {
   const response = await fetch(url, { signal, headers: { Accept: 'application/json' } })
   if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`)
-  return response.json()
+  return asRecord(await response.json())
 }
 
 async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal): Promise<{ data: FeatureCollection; source: string }> {
   if (key === 'earthquakes') {
     const data = await fetchJson('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson', signal)
-    const features = (data.features ?? []).filter((f: any) => f.geometry?.type === 'Point').map((f: any) => {
-      const [lon, lat] = f.geometry.coordinates
-      return pointFeature(lon, lat, {
-        title: String(f.properties?.title ?? 'Earthquake'),
-        magnitude: Number(f.properties?.mag ?? 0),
-        place: String(f.properties?.place ?? 'Location unavailable'),
-        time: Number(f.properties?.time ?? 0),
-        url: String(f.properties?.url ?? 'https://earthquake.usgs.gov/earthquakes/map/'),
-        source: 'USGS Earthquake Hazards Program',
+    const features = arrayOfRecords(data.features)
+      .filter((feature) => asRecord(feature.geometry).type === 'Point')
+      .map((feature) => {
+        const geometry = asRecord(feature.geometry)
+        const coordinates = Array.isArray(geometry.coordinates) ? geometry.coordinates : []
+        const properties = asRecord(feature.properties)
+        return pointFeature(Number(coordinates[0]), Number(coordinates[1]), {
+          title: String(properties.title ?? 'Earthquake'),
+          magnitude: Number(properties.mag ?? 0),
+          place: String(properties.place ?? 'Location unavailable'),
+          time: Number(properties.time ?? 0),
+          url: String(properties.url ?? 'https://earthquake.usgs.gov/earthquakes/map/'),
+          source: 'USGS Earthquake Hazards Program',
+        })
       })
-    })
     return { data: asCollection(features), source: 'USGS · earthquakes from the past 24 hours' }
   }
 
   if (key === 'fires') {
     const data = await fetchJson('https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=200', signal)
     const features: GeoFeature[] = []
-    for (const event of data.events ?? []) {
-      const geometry = [...(event.geometry ?? [])].reverse().find((g: any) => g.type === 'Point')
+    for (const event of arrayOfRecords(data.events)) {
+      const geometry = arrayOfRecords(event.geometry).reverse().find((item) => item.type === 'Point' && Array.isArray(item.coordinates))
       if (!geometry || !Array.isArray(geometry.coordinates)) continue
-      const [lon, lat] = geometry.coordinates
-      features.push(pointFeature(Number(lon), Number(lat), {
+      const coordinates = geometry.coordinates
+      const sources = arrayOfRecords(event.sources)
+      features.push(pointFeature(Number(coordinates[0]), Number(coordinates[1]), {
         title: String(event.title ?? 'Wildfire event'),
         date: String(geometry.date ?? ''),
-        url: String(event.sources?.[0]?.url ?? 'https://eonet.gsfc.nasa.gov/'),
+        url: String(sources[0]?.url ?? 'https://eonet.gsfc.nasa.gov/'),
         source: 'NASA EONET',
       }))
     }
@@ -97,7 +112,7 @@ async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal):
     url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code')
     url.searchParams.set('timezone', 'UTC')
     const data = await fetchJson(url.toString(), signal)
-    const current = data.current ?? {}
+    const current = asRecord(data.current)
     return { data: asCollection([pointFeature(center.lon, center.lat, {
       title: 'Current weather at map center',
       temperatureC: Number(current.temperature_2m ?? 0),
@@ -143,15 +158,17 @@ async function loadLayer(key: LayerKey, center: MapCenter, signal: AbortSignal):
   })
   if (!response.ok) throw new Error(`OpenStreetMap Overpass returned HTTP ${response.status}`)
   const data = await response.json()
-  const features = (data.elements ?? []).flatMap((element: any) => {
-    const lat = Number(element.lat ?? element.center?.lat)
-    const lon = Number(element.lon ?? element.center?.lon)
+  const features = arrayOfRecords(data.elements).flatMap((element) => {
+    const centerPoint = asRecord(element.center)
+    const lat = Number(element.lat ?? centerPoint.lat)
+    const lon = Number(element.lon ?? centerPoint.lon)
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+    const tags = asRecord(element.tags)
     return [pointFeature(lon, lat, {
-      title: String(element.tags?.name ?? element.tags?.amenity ?? element.tags?.public_transport ?? element.tags?.railway ?? 'Map feature'),
+      title: String(tags.name ?? tags.amenity ?? tags.public_transport ?? tags.railway ?? 'Map feature'),
       kind: key,
       source: 'OpenStreetMap',
-      url: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+      url: `https://www.openstreetmap.org/${String(element.type ?? 'node')}/${String(element.id ?? '')}`,
     })]
   })
   return { data: asCollection(features), source: 'OpenStreetMap · nearby mapped features' }
